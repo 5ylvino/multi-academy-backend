@@ -150,7 +150,9 @@ def _guard_config() -> SecurityConfig:
         auto_ban_threshold=max(ceiling * 2, 50),
         auto_ban_duration=900,
         enable_cors=False,  # CORS handled by FastAPI middleware with allowlist
-        enforce_https=cfg.environment == "production",
+        # Caddy terminates public TLS; service-to-service traffic inside the
+        # Docker network is intentionally plain HTTP.
+        enforce_https=False,
         passive_mode=cfg.environment == "development",
         enable_penetration_detection=True,
         # Vercel injects JWTs / signatures into every function request. Guard's
