@@ -1,9 +1,10 @@
 services:
   control-system-server:
+    image: ${GHCR_IMAGE_PREFIX:-ghcr.io/5ylvino/multi-academy-backend}/control-system-server:${IMAGE_TAG:-latest}
     build:
       context: ./control-system-server
     env_file:
-      - ./control-system-server/.env
+      - ./control-system-server/${CONTROL_ENV_FILE:-.env}
     expose:
       - "8000"
     ports:
@@ -22,12 +23,13 @@ services:
       start_period: 20s
 
   web-server:
+    image: ${GHCR_IMAGE_PREFIX:-ghcr.io/5ylvino/multi-academy-backend}/web-server:${IMAGE_TAG:-latest}
     build:
       context: ./web-server
     env_file:
-      - ./web-server/.env
+      - ./web-server/${WEB_ENV_FILE:-.env}
     ports:
-      - "8001:8001"
+      - "127.0.0.1:8001:8001"
     depends_on:
       control-system-server:
         condition: service_healthy
@@ -39,10 +41,11 @@ services:
       start_period: 20s
 
   ai-service:
+    image: ${GHCR_IMAGE_PREFIX:-ghcr.io/5ylvino/multi-academy-backend}/ai-service:${IMAGE_TAG:-latest}
     build:
       context: ./ai-service
     env_file:
-      - ./ai-service/.env
+      - ./ai-service/${AI_ENV_FILE:-.env}
     expose:
       - "8010"
     depends_on:
@@ -62,10 +65,11 @@ services:
       start_period: 20s
 
   tutoring-service:
+    image: ${GHCR_IMAGE_PREFIX:-ghcr.io/5ylvino/multi-academy-backend}/tutoring-service:${IMAGE_TAG:-latest}
     build:
       context: ./tutoring-service
     env_file:
-      - ./tutoring-service/.env
+      - ./tutoring-service/${TUTORING_ENV_FILE:-.env}
     expose:
       - "8011"
     depends_on:
@@ -85,10 +89,11 @@ services:
       start_period: 20s
 
   payment-service:
+    image: ${GHCR_IMAGE_PREFIX:-ghcr.io/5ylvino/multi-academy-backend}/payment-service:${IMAGE_TAG:-latest}
     build:
       context: ./payment-service
     env_file:
-      - ./payment-service/.env
+      - ./payment-service/${PAYMENT_ENV_FILE:-.env}
     expose:
       - "8012"
     depends_on:
@@ -108,10 +113,11 @@ services:
       start_period: 20s
 
   portal-read-service:
+    image: ${GHCR_IMAGE_PREFIX:-ghcr.io/5ylvino/multi-academy-backend}/portal-read-service:${IMAGE_TAG:-latest}
     build:
       context: ./portal-read-service
     env_file:
-      - ./portal-read-service/.env
+      - ./portal-read-service/${PORTAL_READ_ENV_FILE:-.env}
     expose:
       - "8013"
     depends_on:
@@ -127,10 +133,11 @@ services:
       start_period: 20s
 
   worker-service:
+    image: ${GHCR_IMAGE_PREFIX:-ghcr.io/5ylvino/multi-academy-backend}/worker-service:${IMAGE_TAG:-latest}
     build:
       context: ./worker-service
     env_file:
-      - ./worker-service/.env
+      - ./worker-service/${WORKER_ENV_FILE:-.env}
     expose:
       - "8014"
     depends_on:

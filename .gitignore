@@ -3,6 +3,7 @@
 **/.env.*
 !**/.env.example
 **/.environment-production
+.deploy.env
 **/*.pem
 **/*.key
 **/*.crt

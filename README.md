@@ -7,6 +7,12 @@ Nest (`web-server`) is the authenticated school gateway. Python services own dom
 Target architecture: [PERFORMANCE_ARCHITECTURE.md](./PERFORMANCE_ARCHITECTURE.md).
 
 Container development and production deployment: [DOCKER.md](./DOCKER.md).
+Contabo VPS deployment and GitHub Actions release flow:
+[CONTABO_DEPLOYMENT.md](./CONTABO_DEPLOYMENT.md).
+
+Never commit service `.env` files or credentials. Copy each service's
+`.env.example` and configure it locally; the root `.gitignore` protects local
+environment files, virtual environments, dependencies, and build output.
 
 ## Services
 
@@ -21,6 +27,55 @@ Container development and production deployment: [DOCKER.md](./DOCKER.md).
 | `worker-service` | 8014 | Async notifications + reports | [README](./worker-service/README.md) |
 
 Typical start order: Redis + DBs → control (`8000`) → Nest (`8001`) → AI (`8010`) → payment (`8012`) → tutoring (`8011`) → portal-read (`8013`) → worker (`8014`) → client. Full dependency notes: [PERFORMANCE_ARCHITECTURE.md](./PERFORMANCE_ARCHITECTURE.md#local-start-order).
+
+## Docker quick start
+
+From the repository root:
+
+```bash
+docker compose up --build
+```
+
+Run in the background:
+
+```bash
+docker compose up --build -d
+docker compose ps
+```
+
+The browser-facing API is `http://localhost:8001`. The control API is
+available locally at `http://localhost:8000`; Python domain services and Redis
+remain internal to the Compose network.
+
+Health checks:
+
+```bash
+curl http://localhost:8001/api/v1/health/ready
+curl http://localhost:8000/health/ready
+```
+
+Before using a fresh control database, run its migration explicitly:
+
+```bash
+docker compose run --rm --no-deps \
+  control-system-server alembic upgrade head
+```
+
+For an existing database that was previously created with automatic schema
+creation, follow the migration-baseline guidance in [DOCKER.md](./DOCKER.md).
+Keep `AUTO_CREATE_SCHEMA=false` for Docker and production.
+
+## Production endpoints
+
+Production routing uses:
+
+- School API: `https://mas.ng`
+- Control platform: `https://admin.mas.ng`
+
+Only the Nest `web-server` should be exposed to school clients. Keep the
+control server and all Python services private behind the deployment network
+or an administrative access layer. Production deployment, migrations,
+secrets, health probes, and rollback guidance belong in [DOCKER.md](./DOCKER.md).
 
 ## Python services (`.pym`)
 

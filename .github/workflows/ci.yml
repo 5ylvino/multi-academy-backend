@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  nest:
+    name: Nest build and tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: web-server
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web-server/package-lock.json
+      - run: npm ci
+      - run: npm run build
+      - run: npm test -- --runInBand
+
+  python:
+    name: Python tests (${{ matrix.service }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - control-system-server
+          - ai-service
+          - tutoring-service
+          - payment-service
+          - portal-read-service
+          - worker-service
+    defaults:
+      run:
+        working-directory: ${{ matrix.service }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install control service dependencies
+        if: matrix.service == 'control-system-server'
+        run: python -m pip install -r requirements.txt pytest
+      - name: Install packaged service dependencies
+        if: matrix.service != 'control-system-server'
+        run: python -m pip install -e . pytest
+      - run: python -m pytest -q
