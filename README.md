@@ -69,8 +69,8 @@ Keep `AUTO_CREATE_SCHEMA=false` for Docker and production.
 
 Production routing uses:
 
-- School API: `https://mas.ng`
-- Control platform: `https://admin.mas.ng`
+- School API: `https://capi.mas.ng`
+- Control platform API: `https://bapi.mas.ng`
 
 Only the Nest `web-server` should be exposed to school clients. Keep the
 control server and all Python services private behind the deployment network

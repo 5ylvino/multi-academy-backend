@@ -16,26 +16,27 @@ images tagged with the Git commit SHA; it does not build application images.
 Both domains may point to the same VPS public IP:
 
 ```text
-https://mas.ng       -> Caddy -> web-server:8001
-https://admin.mas.ng -> Caddy -> control-system-server:8000
+https://capi.mas.ng -> Caddy -> web-server:8001
+https://bapi.mas.ng -> Caddy -> control-system-server:8000
 ```
 
-One IP can host many domains. DNS selects the IP, and Caddy selects the
-upstream using the HTTP `Host` header. HTTPS certificates are issued
-independently for both hostnames.
+The Vercel frontend domains remain pointed at Vercel. Only the two API
+subdomains below point to Contabo. One IP can host many domains. DNS selects
+the IP, and Caddy selects the upstream using the HTTP `Host` header. HTTPS
+certificates are issued independently for both API hostnames.
 
 Only ports `80` and `443` are public. Ports `8000`, `8001`, and all Python
 service ports remain bound to localhost or the private Docker network.
 
 ## 1. Prepare DNS
 
-At the DNS provider for `mas.ng`, create these records:
+At the external DNS provider that manages `mas.ng`, create these records:
 
 
 | Type | Name    | Value                     |
 | ---- | ------- | ------------------------- |
-| A    | `@`     | `<CONTABO_VPS_PUBLIC_IP>` |
-| A    | `admin` | `<CONTABO_VPS_PUBLIC_IP>` |
+| A    | `capi`   | `<CONTABO_VPS_PUBLIC_IP>` |
+| A    | `bapi`   | `<CONTABO_VPS_PUBLIC_IP>` |
 
 
 If IPv6 is configured, add matching `AAAA` records. Otherwise do not add
@@ -44,8 +45,8 @@ stale `AAAA` records; they can make browsers reach the wrong server.
 Verify from your computer:
 
 ```bash
-dig +short mas.ng
-dig +short admin.mas.ng
+dig +short capi.mas.ng
+dig +short bapi.mas.ng
 ```
 
 Both should return the same Contabo IP before requesting certificates.
@@ -80,7 +81,7 @@ On the VPS:
 apt update && apt upgrade -y
 apt install -y ca-certificates curl git ufw fail2ban unattended-upgrades
 adduser --disabled-password --gecos "" deploy
-usermod -aG sudo,docker deploy
+usermod -aG sudo deploy
 ```
 
 Install Docker Engine and Compose:
@@ -97,7 +98,21 @@ $(. /etc/os-release && echo "$VERSION_CODENAME") stable" \
 apt update
 apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 systemctl enable --now docker
+usermod -aG docker deploy
 ```
+
+The Docker group change applies only to new login sessions. Close and
+reconnect the `deploy` SSH session, or run `newgrp docker`, then verify:
+
+```bash
+id
+docker ps
+docker compose version
+```
+
+If `docker ps` reports permission denied, run `usermod -aG docker deploy` as
+`root`, then reconnect. Do not run `usermod` as the unprivileged `deploy`
+user.
 
 
 
@@ -305,7 +320,23 @@ yourself out. If SSH is open generally, confirm that `PasswordAuthentication no`
 
 ```bash
 systemctl enable --now fail2ban
-fail2ban-client status
+fail2ban-client status sshd
+```
+
+Run the firewall and Fail2ban commands as `root`, or prefix them with
+`sudo` when using an administrator account. When `ufw enable` asks:
+
+```text
+Command may disrupt existing ssh connections. Proceed with operation (y|n)?
+```
+
+answer `y` only after confirming that the SSH allow rule was added and that
+your current SSH session is working. Keep a second SSH session open while
+testing the firewall. Then verify:
+
+```bash
+ufw status verbose
+fail2ban-client status sshd
 ```
 
 Do not expose database, Redis, or application ports to the Internet.
@@ -393,11 +424,17 @@ CORS_ORIGINS=["https://admin.mas.ng"]
 NODE_ENV=production
 CONTROL_DB_AUTO_MIGRATE=false
 CORS_ORIGINS=https://mas.ng,https://admin.mas.ng
-CONTROL_API_URL=https://admin.mas.ng
+CONTROL_API_URL=https://bapi.mas.ng
 ```
 
 Use the actual managed database, Redis, JWT, encryption, webhook, provider,
 and M2M values. Never put secrets in GitHub workflow YAML or the repository.
+
+`CORS_ORIGINS` contains the browser-facing Vercel/frontend origins, not the
+backend API origin. If your Vercel projects use different custom domains,
+replace `https://mas.ng` and `https://admin.mas.ng` with those exact frontend
+origins. The browser-facing API URLs remain `https://capi.mas.ng` for the
+school frontend and `https://bapi.mas.ng` for the control frontend.
 
 ## 7. Configure Compose deployment variables
 
@@ -510,18 +547,26 @@ apt update && apt install -y caddy
 Create `/etc/caddy/Caddyfile`:
 
 ```caddyfile
-mas.ng {
+capi.mas.ng {
     reverse_proxy 127.0.0.1:8001
 }
 
-admin.mas.ng {
+bapi.mas.ng {
     reverse_proxy 127.0.0.1:8000
 }
+```
+
+If replacing the default Caddyfile, remove the sample `:80` static-file
+block so it does not compete with the API site blocks. Back it up first:
+
+```bash
+cp /etc/caddy/Caddyfile /etc/caddy/Caddyfile.backup
 ```
 
 Apply it:
 
 ```bash
+caddy fmt --overwrite /etc/caddy/Caddyfile
 caddy validate --config /etc/caddy/Caddyfile
 systemctl enable --now caddy
 systemctl reload caddy
@@ -531,6 +576,12 @@ systemctl status caddy
 Caddy obtains and renews certificates automatically after DNS points to the
 VPS and ports 80/443 are reachable. Do not place the application containers
 on public ports 80 or 443.
+
+If certificates are still being issued, monitor Caddy:
+
+```bash
+journalctl -u caddy -f
+```
 
 ## 10. Configure GitHub Actions secrets
 
@@ -605,9 +656,15 @@ schema. A new database must use `upgrade head`.
 Verify both public routes:
 
 ```bash
-curl -I https://mas.ng/api/v1/health/ready
-curl -I https://admin.mas.ng/health/ready
+curl -i https://capi.mas.ng/api/v1/health/ready
+curl -i https://bapi.mas.ng/health/ready
 ```
+
+Both endpoints should return `HTTP 200` and a JSON health response. A `404`
+at the API root (`https://capi.mas.ng`) is not a deployment failure if the
+health endpoint returns `200`; the Nest application does not define a root
+route. FastAPI may return a redirect at `https://bapi.mas.ng/` because it
+normalizes the trailing slash.
 
 
 
