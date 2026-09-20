@@ -1,0 +1,51 @@
+# Secrets and local environment files
+**/.env
+**/.env.*
+!**/.env.example
+**/.environment-production
+**/*.pem
+**/*.key
+**/*.crt
+
+# Python environments and generated files
+**/.pym/
+**/.venv/
+**/venv/
+**/__pycache__/
+**/*.py[cod]
+**/*.egg-info/
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+**/.coverage
+**/htmlcov/
+**/*.db
+**/*.sqlite
+**/*.sqlite3
+
+# Node dependencies and build output
+**/node_modules/
+**/dist/
+**/build/
+**/coverage/
+**/*.tsbuildinfo
+
+# Logs and local runtime output
+**/*.log
+**/logs/
+*.pid
+*.seed
+
+# Editors and operating-system files
+.DS_Store
+**/.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Local Docker and tool state
+.docker/
+.docker-data/
+.cache/
+**/.cache/
