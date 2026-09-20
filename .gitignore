@@ -50,3 +50,6 @@
 .docker-data/
 .cache/
 **/.cache/
+
+
+VPS-note.sh
