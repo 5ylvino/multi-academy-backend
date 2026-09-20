@@ -1,0 +1,10 @@
+.pym
+.venv
+__pycache__
+*.pyc
+.env
+.environment-production
+.pytest_cache
+*.egg-info
+.git
+.gitignore

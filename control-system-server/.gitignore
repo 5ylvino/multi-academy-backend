@@ -1,0 +1,7 @@
+.pym
+__pycache__/
+*.pyc
+.env
+control.db
+.venv/
+.environment-production
