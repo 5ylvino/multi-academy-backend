@@ -14,6 +14,10 @@ class Settings(BaseSettings):
     service_jwt_secret: str = Field(default="change-me", alias="SERVICE_JWT_SECRET")
     service_jwt_audience: str = Field(default="mas-portal-read-service", alias="SERVICE_JWT_AUDIENCE")
     service_jwt_issuer: str = Field(default="mas-school-server", alias="SERVICE_JWT_ISSUER")
+    school_internal_service_jwt_secret: str = Field(
+        default="",
+        alias="SCHOOL_INTERNAL_SERVICE_JWT_SECRET",
+    )
 
     school_internal_api_url: str = Field(
         default="http://localhost:8001/api/v1",

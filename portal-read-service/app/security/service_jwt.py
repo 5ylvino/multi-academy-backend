@@ -38,7 +38,11 @@ def issue_service_token(
         "exp": now + ttl_seconds,
         "jti": str(uuid.uuid4()),
     }
-    return jwt.encode(payload, cfg.service_jwt_secret, algorithm="HS256")
+    return jwt.encode(
+        payload,
+        cfg.school_internal_service_jwt_secret or cfg.service_jwt_secret,
+        algorithm="HS256",
+    )
 
 
 def decode_service_token(token: str, settings: Settings | None = None) -> dict[str, Any]:

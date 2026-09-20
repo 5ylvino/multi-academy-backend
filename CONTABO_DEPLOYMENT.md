@@ -425,6 +425,10 @@ NODE_ENV=production
 CONTROL_DB_AUTO_MIGRATE=false
 CORS_ORIGINS=https://mas.ng,https://admin.mas.ng
 CONTROL_API_URL=https://bapi.mas.ng
+
+# portal-read-service/.environment-production
+SERVICE_JWT_AUDIENCE=mas-portal-read-service
+SCHOOL_INTERNAL_SERVICE_JWT_SECRET=<same value as web-server SERVICE_JWT_SECRET>
 ```
 
 Use the actual managed database, Redis, JWT, encryption, webhook, provider,
