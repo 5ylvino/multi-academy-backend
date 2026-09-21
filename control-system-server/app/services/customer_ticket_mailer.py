@@ -1,6 +1,7 @@
 import logging
 import os
 import smtplib
+import ssl
 from email.message import EmailMessage
 
 import requests
@@ -35,8 +36,10 @@ def _provider(db: Session):
 def _sender(config: ProviderConfig | None, secrets: dict[str, str]) -> str:
     settings = config.settings if config else {}
     return (
-        str(settings.get("fromEmail") or settings.get("from_email") or "").strip()
+        str(settings.get("from") or "").strip()
+        or str(settings.get("fromEmail") or settings.get("from_email") or "").strip()
         or secrets.get("from_email", "").strip()
+        or secrets.get("from", "").strip()
         or os.getenv("EMAIL_FROM_ADDRESS", "").strip()
     )
 
@@ -66,10 +69,19 @@ def _send_smtp(
     secrets: dict[str, str],
     settings: dict,
 ) -> None:
-    host = secrets.get("host") or secrets.get("smtp_host") or str(settings.get("host") or "")
-    username = secrets.get("username") or secrets.get("email") or sender
+    host = (
+        secrets.get("host")
+        or secrets.get("smtp_host")
+        or str(settings.get("host") or settings.get("smtp_host") or "")
+    )
+    username = (
+        secrets.get("username")
+        or secrets.get("email")
+        or str(settings.get("username") or settings.get("email") or "")
+        or sender
+    )
     password = secrets.get("password") or secrets.get("smtp_password") or ""
-    port = int(secrets.get("port") or settings.get("port") or 587)
+    port = int(settings.get("port") or secrets.get("port") or 587)
     if not host or not username or not password:
         raise RuntimeError("SMTP email provider is missing host, username, or password")
 
@@ -78,8 +90,27 @@ def _send_smtp(
     message["To"] = recipient
     message["Subject"] = subject
     message.set_content(text)
+    # cPanel commonly uses implicit TLS on 465, while 587 uses STARTTLS.
+    # The provider health check supports both modes; delivery must use the
+    # same transport or a health check can pass while real mail fails.
+    secure = settings.get("secure")
+    if secure is None:
+        secure = secrets.get("secure")
+    if port == 465 or str(secure or "").lower() in {"1", "true", "yes"}:
+        with smtplib.SMTP_SSL(
+            host,
+            port,
+            timeout=15,
+            context=ssl.create_default_context(),
+        ) as smtp:
+            smtp.login(username, password)
+            smtp.send_message(message)
+        return
+
     with smtplib.SMTP(host, port, timeout=15) as smtp:
-        smtp.starttls()
+        smtp.ehlo()
+        smtp.starttls(context=ssl.create_default_context())
+        smtp.ehlo()
         smtp.login(username, password)
         smtp.send_message(message)
 
@@ -111,6 +142,12 @@ def send_customer_email(
             raise RuntimeError(
                 "No usable email provider configured; configure the global email provider"
             )
+        logger.info(
+            "Customer ticket email sent ticket=%s provider=%s recipient=%s",
+            ticket.ticket_number,
+            provider_id,
+            "redacted",
+        )
         return True
     except Exception:
         logger.exception("Customer ticket email delivery failed ticket=%s", ticket.ticket_number)

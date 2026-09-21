@@ -206,16 +206,22 @@ export class AuthService {
         'http://localhost:3000'
       ).replace(/\/$/, '');
 
-      await this.comms.sendTransactionalEmail(tenant.id, {
+      // The tenant has just been created and cannot have tenant-scoped
+      // provider configuration yet. Use the same global platform provider
+      // that delivered the verification email.
+      const welcomeDelivery = await this.comms.sendTransactionalEmail('__platform__', {
         to: user.email,
         subject: `Welcome to ${tenant.name}`,
         text: [
-          `Your school tenant is ready.`,
+          `Your school app is ready.`,
           `School Business Organisation ID: ${tenant.schoolBusinessOrganisationId}`,
           `School sign in: ${clientBase}/${tenant.slug}/login`,
         ].join('\n'),
         html: `<p>Your school tenant is ready.</p><p><strong>School Business Organisation ID:</strong> ${tenant.schoolBusinessOrganisationId}</p><p><a href="${clientBase}/${tenant.slug}/login" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px">Open school login</a></p>`,
       });
+      this.logger.log(
+        `Tenant welcome email sent to ${user.email} via ${welcomeDelivery.providerId} (${welcomeDelivery.messageId})`,
+      );
       this.logger.log(`Tenant onboarding completed for ${user.email}`);
     } catch (error) {
       this.logger.error(
