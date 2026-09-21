@@ -32,6 +32,7 @@ class AiResponse(BaseModel):
     usage: UsageInfo | None = None
     sources: list[SourceCitation] = Field(default_factory=list)
     disclaimer: str | None = None
+    limitations: list[str] = Field(default_factory=list)
     conversation_id: str | None = Field(default=None, alias="conversationId")
 
     model_config = {"populate_by_name": True}

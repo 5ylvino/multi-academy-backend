@@ -9,6 +9,7 @@ from app.database import get_db
 from app.deps import StaffContext, require_permissions
 from app.models import CustomerTicket, TicketNote
 from app.models.tickets import TICKET_PRIORITIES, TICKET_REQUEST_TYPES, TICKET_STATUSES
+from app.services.customer_ticket_mailer import send_customer_email
 from app.schemas import (
     PublicContactCreate,
     PublicContactOut,
@@ -45,6 +46,17 @@ def create_public_contact(body: PublicContactCreate, db: Session = Depends(get_d
     db.flush()
     ticket.ticket_number = f"REQ-{ticket.id:06d}"
     db.commit()
+    send_customer_email(
+        db,
+        ticket,
+        f"We received your {ticket.request_type} request",
+        (
+            f"Hello {ticket.name},\n\n"
+            "Thank you for contacting MA-SMS. We received your request and a member "
+            f"of our team will follow up shortly.\n\nReference: {ticket.ticket_number}\n\n"
+            "Regards,\nMA-SMS Team"
+        ),
+    )
     return PublicContactOut(
         ticket_number=ticket.ticket_number,
         message="Thanks. We will be in touch shortly.",
@@ -150,7 +162,8 @@ def add_ticket_note(
     ticket = db.get(CustomerTicket, ticket_id)
     if ticket is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "Ticket not found")
-    note = TicketNote(ticket_id=ticket.id, author_email=staff.email, body=body.body.strip())
+    note_body = body.body.strip()
+    note = TicketNote(ticket_id=ticket.id, author_email=staff.email, body=note_body)
     db.add(note)
     record_audit(
         db,
@@ -163,4 +176,15 @@ def add_ticket_note(
     )
     db.commit()
     db.refresh(note)
+    if body.send_email:
+        send_customer_email(
+            db,
+            ticket,
+            f"Re: {ticket.request_type.title()} request {ticket.ticket_number}",
+            (
+                f"Hello {ticket.name},\n\n{note_body}\n\n"
+                f"Reference: {ticket.ticket_number}\n\n"
+                "Regards,\nMA-SMS Team"
+            ),
+        )
     return note

@@ -34,7 +34,7 @@ export async function getVisibleStudentIds(
 ): Promise<string[] | null> {
   const rows = await runDbQuery(ds, `SELECT roles FROM users WHERE id = ? LIMIT 1`, [userId]);
   const roles = parseRoleList(rows?.[0]?.roles);
-  if (hasAcademicManagementRole(roles)) return null;
+  if (hasTenantWideRole(roles) || hasAcademicManagementRole(roles)) return null;
   if (roles.includes('student')) return [userId];
   if (roles.includes('parent')) {
     const links = await runDbQuery(
@@ -44,7 +44,11 @@ export async function getVisibleStudentIds(
     );
     return links.map((row: any) => String(row.studentId ?? row.studentid));
   }
-  if (roles.includes('class_teacher') || roles.includes('subject_teacher')) {
+  if (
+    roles.includes('teacher') ||
+    roles.includes('class_teacher') ||
+    roles.includes('subject_teacher')
+  ) {
     const scope = await getTeacherScope(ds, userId);
     if (!scope.classIds.length && !scope.subjectClassIds.length) return [];
     const classIds = [...new Set([...scope.classIds, ...scope.subjectClassIds])];
@@ -95,7 +99,9 @@ export async function getTeacherScope(
   );
   const roles = parseRoleList(rows?.[0]?.roles);
   const isTeacher =
-    roles.includes('class_teacher') || roles.includes('subject_teacher');
+    roles.includes('teacher') ||
+    roles.includes('class_teacher') ||
+    roles.includes('subject_teacher');
   if (!isTeacher) {
     return { isTeacher: false, classIds: [], subjectIds: [], subjectClassIds: [] };
   }

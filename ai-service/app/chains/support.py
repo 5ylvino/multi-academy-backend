@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from app.chains.base import format_sources_block, load_prompt, run_llm_chat, to_ai_response
+from app.chains.base import (
+    format_school_context,
+    format_sources_block,
+    load_prompt,
+    run_llm_chat,
+    to_ai_response,
+)
 from app.providers.llm.base import LlmMessage
 from app.schemas.chat import ChatRequest
 from app.schemas.common import AiResponse
@@ -23,6 +29,7 @@ class SupportChain:
         )
         system_prompt = (
             f"{load_prompt('support')}\n\n"
+            f"Authorized school context (read-only):\n{format_school_context(payload.school_context)}\n\n"
             f"Retrieved support articles:\n{format_sources_block(sources)}"
         )
         result = await run_llm_chat(

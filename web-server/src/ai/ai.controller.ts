@@ -17,6 +17,7 @@ import { AuthUserClaims } from '../common/auth/auth-user.interface';
 import { FeatureFlagService } from '../platform-config/feature-flag.service';
 import { ProviderRegistryService } from '../platform-config/providers/provider-registry.service';
 import { AiContextService } from './ai-context.service';
+import { AiAuthorizedContextService } from './ai-authorized-context.service';
 import { AiClassInsightsService } from './ai-class-insights.service';
 import { AiSignalsService } from './ai-signals.service';
 import { AiServiceClient } from './ai-service.client';
@@ -41,6 +42,7 @@ export class AiController {
     private readonly flags: FeatureFlagService,
     private readonly providers: ProviderRegistryService,
     private readonly context: AiContextService,
+    private readonly authorizedContext: AiAuthorizedContextService,
     private readonly signals: AiSignalsService,
     private readonly classInsights: AiClassInsightsService,
     private readonly aiService: AiServiceClient,
@@ -78,13 +80,7 @@ export class AiController {
     const messages = safeMessages(body.messages);
 
     if (this.aiService.isEnabled()) {
-      const schoolContextRaw = await this.context.build(tenantId);
-      let schoolContext: unknown = schoolContextRaw;
-      try {
-        schoolContext = JSON.parse(schoolContextRaw);
-      } catch {
-        /* keep string snapshot */
-      }
+      const schoolContext = await this.authorizedContext.build(tenantId, this.actorFrom(user));
       const result = await this.aiService.assistantChat(tenantId, this.actorFrom(user), {
         messages,
         model: body.model,
@@ -98,7 +94,11 @@ export class AiController {
     if (ai.id === 'disabled') {
       throw new ForbiddenException('AI provider unavailable (fail closed)');
     }
-    const schoolContext = await this.context.build(tenantId);
+    const authorizedContext = await this.authorizedContext.build(
+      tenantId,
+      this.actorFrom(user),
+    );
+    const schoolContext = JSON.stringify(authorizedContext);
     const result = await ai.chat({
       messages: [
         {
@@ -123,7 +123,12 @@ ${schoolContext}`,
       model: body.model,
       tenantId,
     } as any);
-    return ok('AI assistant reply', { ...result, providerId: ai.id });
+    return ok('AI assistant reply', {
+      ...result,
+      providerId: ai.id,
+      sources: authorizedContext.sources,
+      limitations: authorizedContext.limitations,
+    });
   }
 
   @Post('support/chat')
@@ -137,9 +142,14 @@ ${schoolContext}`,
     await this.flags.assertEnabled(tenantId, 'ai.support_chatbot');
 
     if (this.aiService.isEnabled()) {
+      const schoolContext = await this.authorizedContext.build(
+        tenantId,
+        this.actorFrom(user),
+      );
       const result = await this.aiService.supportChat(tenantId, this.actorFrom(user), {
         messages: safeMessages(body.messages),
         model: body.model,
+        schoolContext,
         provider: await this.providerPayload(tenantId, body.model),
       });
       return ok('Support chatbot reply', result);
@@ -330,6 +340,7 @@ ${schoolContext}`,
 
   @Get('guidance/home')
   @RequireFeature('ai.performance_recommendations')
+  @RequirePermissions('ai:use')
   async homeGuidance(
     @TenantId() tenantId: string,
     @CurrentUser() user: AuthUserClaims,
@@ -339,6 +350,7 @@ ${schoolContext}`,
       throw new BadRequestException('studentId is required');
     }
     const actorId = user.user_id || user.sub;
+    await this.authorizedContext.assertStudentVisible(tenantId, actorId, studentId);
 
     if (this.aiService.isEnabled()) {
       try {
@@ -365,7 +377,9 @@ ${schoolContext}`,
   }
 
   @Get('guidance/study-plan')
+  @RequireFeature('ai.performance_recommendations')
   @RequireRoles('student')
+  @RequirePermissions('ai:use')
   async studyPlan(
     @TenantId() tenantId: string,
     @CurrentUser() user: AuthUserClaims,
@@ -422,11 +436,16 @@ ${schoolContext}`,
     }
 
     if (this.aiService.isEnabled()) {
+      const schoolContext = await this.authorizedContext.build(
+        tenantId,
+        this.actorFrom(user),
+      );
       const result = await this.aiService.tutorChat(tenantId, this.actorFrom(user), {
         message: body.message,
         sessionId: body.sessionId,
         subjectId: body.subjectId,
         topic: body.topic,
+        schoolContext,
         provider: await this.providerPayload(tenantId, body.model),
       });
       return ok('Tutor reply', result);
@@ -465,6 +484,11 @@ ${schoolContext}`,
   ) {
     await this.flags.assertEnabled(tenantId, 'ai.tutor');
     const resolvedStudentId = studentId?.trim() || user.user_id || user.sub;
+    await this.authorizedContext.assertStudentVisible(
+      tenantId,
+      user.user_id || user.sub,
+      resolvedStudentId,
+    );
     if (!this.aiService.isEnabled()) {
       return ok('Topic mastery', { studentId: resolvedStudentId, items: [] });
     }
@@ -507,6 +531,7 @@ ${schoolContext}`,
   }
 
   @Get('insights/classes')
+  @RequireFeature('ai.performance_detection')
   @RequirePermissions('ai:use', 'analytics:view')
   async listInsightClasses(@TenantId() tenantId: string) {
     return ok('Classes', await this.classInsights.listClasses(tenantId));
@@ -640,6 +665,11 @@ ${schoolContext}`,
   ) {
     await this.flags.assertEnabled(tenantId, 'academic.jamb_cbt');
     const resolved = studentId?.trim() || user.user_id || user.sub;
+    await this.authorizedContext.assertStudentVisible(
+      tenantId,
+      user.user_id || user.sub,
+      resolved,
+    );
     if (!this.aiService.isEnabled()) {
       return ok('JAMB readiness', {
         studentId: resolved,
@@ -676,6 +706,11 @@ ${schoolContext}`,
   ) {
     await this.flags.assertEnabled(tenantId, 'ai.report_comments');
     if (!body.studentId?.trim()) throw new BadRequestException('studentId is required');
+    await this.authorizedContext.assertStudentVisible(
+      tenantId,
+      user.user_id || user.sub,
+      body.studentId,
+    );
     if (!this.aiService.isEnabled()) {
       throw new ForbiddenException('Report comment drafts require AI_SERVICE_URL');
     }

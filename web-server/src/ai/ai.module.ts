@@ -3,6 +3,7 @@ import { ControlPlaneModule } from '../control-plane/control-plane.module';
 import { DatabaseModule } from '../database/database.module';
 import { TimetableModule } from '../timetable/timetable.module';
 import { AiController } from './ai.controller';
+import { AiAuthorizedContextService } from './ai-authorized-context.service';
 import { AiContextService } from './ai-context.service';
 import { AiClassInsightsService } from './ai-class-insights.service';
 import { AiSignalsService } from './ai-signals.service';
@@ -15,6 +16,7 @@ import { TimetableSolverService } from './timetable-solver.service';
   imports: [DatabaseModule, ControlPlaneModule, TimetableModule],
   controllers: [AiController],
   providers: [
+    AiAuthorizedContextService,
     AiContextService,
     AiSignalsService,
     AiClassInsightsService,

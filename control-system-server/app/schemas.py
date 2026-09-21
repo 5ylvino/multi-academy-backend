@@ -928,6 +928,7 @@ class PublicContactOut(BaseModel):
 
 class TicketNoteCreate(BaseModel):
     body: str = Field(min_length=1, max_length=10_000)
+    send_email: bool = False
 
 
 class TicketUpdate(BaseModel):

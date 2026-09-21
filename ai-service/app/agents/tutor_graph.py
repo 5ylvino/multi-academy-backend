@@ -13,6 +13,7 @@ from app.db.models import AiTutorMessage, AiTutorSession
 from app.db.session import SessionLocal
 from app.providers.llm.base import LlmMessage
 from app.schemas.tutor import TutorChatRequest, TutorChatResponse, TutorQuiz
+from app.schemas.common import SourceCitation
 from app.security.context import RequestContext
 from app.services.mastery import MasteryService
 from app.services.retrieval import RetrievalService
@@ -24,6 +25,7 @@ class TutorState(TypedDict, total=False):
     session: AiTutorSession
     history: list[dict[str, str]]
     retrieval: str
+    sources: list[SourceCitation]
     explain_text: str
     quiz_json: dict[str, Any] | None
     provider_id: str
@@ -72,7 +74,18 @@ class TutorGraph:
         query = session.topic or state["payload"].message
         sources = await self._retrieval.retrieve(tenant_id=state["ctx"].tenant_id, query=query)
         block = "\n".join(f"- {s.excerpt}" for s in sources[:8]) or "No documents."
-        return {**state, "retrieval": block}
+        context_sources: list[SourceCitation] = []
+        if isinstance(state["payload"].school_context, dict):
+            for source in state["payload"].school_context.get("sources", []) or []:
+                if isinstance(source, dict):
+                    context_sources.append(
+                        SourceCitation(
+                            type=str(source.get("type") or "school_data"),
+                            id=str(source.get("id") or ""),
+                            excerpt=str(source.get("label") or ""),
+                        )
+                    )
+        return {**state, "retrieval": block, "sources": [*context_sources, *sources]}
 
     async def _explain_node(self, state: TutorState) -> TutorState:
         session = state["session"]
@@ -81,6 +94,7 @@ class TutorGraph:
         system = (
             f"{load_prompt('tutor')}\n\n"
             f"Topic: {session.topic}\n"
+            f"Authorized school context:\n{str(payload.school_context)[:12000]}\n\n"
             f"Retrieved notes:\n{state['retrieval']}\n\n"
             f"Prior turns:\n{history_lines or 'None'}"
         )
@@ -159,6 +173,7 @@ class TutorGraph:
                 providerId=final_state["provider_id"],
                 model=final_state["model"],
                 disclaimer="AI tutor support — verify with your class teacher before exams.",
+                sources=final_state.get("sources", []),
             )
         except Exception:
             session_db.rollback()
@@ -219,6 +234,7 @@ class TutorGraph:
                 providerId="rule",
                 model="tutor-feedback",
                 disclaimer="AI tutor support — verify with your class teacher before exams.",
+                sources=[],
             )
         except Exception:
             session_db.rollback()

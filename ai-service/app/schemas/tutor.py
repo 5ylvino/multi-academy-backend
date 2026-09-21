@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field
 
-from app.schemas.common import ProviderConfig
+from app.schemas.common import ProviderConfig, SourceCitation
 from app.schemas.chat import ChatMessage
 
 
@@ -10,6 +10,7 @@ class TutorChatRequest(BaseModel):
     subject_id: str | None = Field(default=None, alias="subjectId")
     topic: str | None = None
     provider: ProviderConfig | None = None
+    school_context: dict | str | None = Field(default=None, alias="schoolContext")
 
     model_config = {"populate_by_name": True}
 
@@ -36,6 +37,7 @@ class TutorChatResponse(BaseModel):
     provider_id: str = Field(alias="providerId")
     model: str
     disclaimer: str
+    sources: list[SourceCitation] = Field(default_factory=list)
 
     model_config = {"populate_by_name": True}
 

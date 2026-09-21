@@ -133,6 +133,7 @@ export class AiServiceClient {
     body: {
       messages: { role: string; content: string }[];
       model?: string;
+      schoolContext?: unknown;
       provider?: { providerId?: string; model?: string; maxTokens?: number };
     },
   ) {
@@ -153,6 +154,7 @@ export class AiServiceClient {
       sessionId?: string;
       subjectId?: string;
       topic?: string;
+      schoolContext?: unknown;
       provider?: { providerId?: string; model?: string; maxTokens?: number };
     },
   ) {
@@ -165,6 +167,7 @@ export class AiServiceClient {
       providerId?: string;
       model?: string;
       disclaimer?: string;
+      sources?: unknown[];
     }>('/v1/tutor/chat', tenantId, actor, body, { features: ['ai.tutor'] });
   }
 
