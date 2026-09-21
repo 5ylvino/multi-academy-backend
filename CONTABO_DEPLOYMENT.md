@@ -32,6 +32,11 @@ service ports remain bound to localhost or the private Docker network.
 
 At the external DNS provider that manages `mas.ng`, create these records:
 
+Keep the Vercel frontend records pointed at Vercel. The control frontend
+custom domain is now `control.mas.ng`; configure that hostname using the
+CNAME/verification value supplied by Vercel. Only `capi.mas.ng` and
+`bapi.mas.ng` should point to the Contabo VPS.
+
 
 | Type | Name    | Value                     |
 | ---- | ------- | ------------------------- |
@@ -418,12 +423,12 @@ ENVIRONMENT=production
 DEBUG=false
 AUTO_CREATE_SCHEMA=false
 REDIS_URL=redis://<managed-redis-host>:6379
-CORS_ORIGINS=["https://admin.mas.ng"]
+CORS_ORIGINS=["https://control.mas.ng"]
 
 # web-server/.environment-production
 NODE_ENV=production
 CONTROL_DB_AUTO_MIGRATE=false
-CORS_ORIGINS=https://mas.ng,https://admin.mas.ng
+CORS_ORIGINS=https://mas.ng,https://control.mas.ng
 CONTROL_API_URL=https://bapi.mas.ng
 
 # portal-read-service/.environment-production
@@ -436,7 +441,7 @@ and M2M values. Never put secrets in GitHub workflow YAML or the repository.
 
 `CORS_ORIGINS` contains the browser-facing Vercel/frontend origins, not the
 backend API origin. If your Vercel projects use different custom domains,
-replace `https://mas.ng` and `https://admin.mas.ng` with those exact frontend
+replace `https://mas.ng` and `https://control.mas.ng` with those exact frontend
 origins. The browser-facing API URLs remain `https://capi.mas.ng` for the
 school frontend and `https://bapi.mas.ng` for the control frontend.
 
@@ -458,6 +463,22 @@ WORKER_ENV_FILE=.environment-production
 
 The committed template is [.deploy.env.example](./.deploy.env.example).
 Change `GHCR_IMAGE_PREFIX` if the GitHub repository is transferred.
+
+Always pass `.deploy.env` to Docker Compose in production. Without it,
+Compose falls back to each service's default `.env` filename and may report
+an error such as:
+
+```text
+env file /opt/mas/backend/control-system-server/.env not found
+```
+
+For example, recreate only the control server with:
+
+```bash
+cd /opt/mas/backend
+docker compose --env-file .deploy.env \
+  up -d --force-recreate control-system-server
+```
 
 ## 8. Give the VPS read access to GHCR
 
