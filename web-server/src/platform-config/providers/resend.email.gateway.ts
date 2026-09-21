@@ -34,6 +34,12 @@ export class ResendEmailGateway implements EmailGateway {
     const from =
       String(payload?.settings?.from || payload?.secrets?.from || '') ||
       'noreply@multi-academy.local';
+    const fromName = String(
+      payload?.settings?.fromName ||
+        payload?.settings?.from_name ||
+        payload?.secrets?.from_name ||
+        '',
+    ).trim();
     if (!apiKey) {
       throw new Error('Email api_key missing from control vault');
     }
@@ -46,7 +52,7 @@ export class ResendEmailGateway implements EmailGateway {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from,
+        from: fromName && !from.includes("<") ? `${fromName} <${from}>` : from,
         to,
         subject: input.subject,
         html: input.html,

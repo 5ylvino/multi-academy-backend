@@ -3,6 +3,7 @@ import os
 import smtplib
 import ssl
 from email.message import EmailMessage
+from email.utils import formataddr
 
 import requests
 from sqlalchemy import select
@@ -44,6 +45,16 @@ def _sender(config: ProviderConfig | None, secrets: dict[str, str]) -> str:
     )
 
 
+def _sender_name(config: ProviderConfig | None, secrets: dict[str, str]) -> str:
+    settings = config.settings if config else {}
+    return (
+        str(settings.get("fromName") or settings.get("from_name") or "").strip()
+        or secrets.get("from_name", "").strip()
+        or os.getenv("EMAIL_FROM_NAME", "").strip()
+        or "MA-SMS"
+    )
+
+
 def _send_resend(
     recipient: str,
     subject: str,
@@ -68,6 +79,7 @@ def _send_smtp(
     sender: str,
     secrets: dict[str, str],
     settings: dict,
+    sender_name: str,
 ) -> None:
     host = (
         secrets.get("host")
@@ -86,7 +98,7 @@ def _send_smtp(
         raise RuntimeError("SMTP email provider is missing host, username, or password")
 
     message = EmailMessage()
-    message["From"] = sender or username
+    message["From"] = formataddr((sender_name, sender or username))
     message["To"] = recipient
     message["Subject"] = subject
     message.set_content(text)
@@ -131,13 +143,28 @@ def send_customer_email(
     provider_id = config.provider_id if config else ""
     settings = config.settings if config else {}
     sender = _sender(config, secrets)
+    sender_name = _sender_name(config, secrets)
     api_key = secrets.get("api_key") or os.getenv("EMAIL_API_KEY", "").strip()
 
     try:
         if provider_id == "resend" and api_key and sender:
-            _send_resend(ticket.email, subject, text, sender, api_key)
+            _send_resend(
+                ticket.email,
+                subject,
+                text,
+                formataddr((sender_name, sender)),
+                api_key,
+            )
         elif provider_id in {"cpanel", "smtp"}:
-            _send_smtp(ticket.email, subject, text, sender, secrets, settings)
+            _send_smtp(
+                ticket.email,
+                subject,
+                text,
+                sender,
+                secrets,
+                settings,
+                sender_name,
+            )
         else:
             raise RuntimeError(
                 "No usable email provider configured; configure the global email provider"
