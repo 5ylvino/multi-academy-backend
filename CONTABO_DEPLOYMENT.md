@@ -652,7 +652,38 @@ Actions connects to the VPS over SSH; it does not copy application secrets.
 The VPS never needs a Git checkout for application source code. It only needs
 Compose, production env files, the synced Compose file, and registry access.
 
-## 12. First deployment
+## 12. Normal application deployment (no VPS login required)
+
+For normal application code changes, work locally and push to the `main`
+branch:
+
+```bash
+git add .
+git commit -m "Describe the change"
+git push origin main
+```
+
+GitHub Actions then runs CI, builds the Docker images, publishes them to GHCR,
+connects to the VPS over the configured deployment SSH key, pulls the exact
+commit images, runs the configured migration step, and restarts the services.
+You do not need to SSH into the VPS for this normal release path.
+
+## 13. When VPS access is still required
+
+SSH access is still needed for one-time or operational work:
+
+- Initial VPS, Docker, firewall, Caddy, and DNS setup
+- Updating production environment files or rotating secrets
+- Changing Caddy or DNS configuration
+- Investigating failed containers or failed deployments
+- Planned database recovery or manual migration repair
+- Emergency rollback or service recovery
+
+Production environment files are intentionally kept outside GitHub. Therefore,
+environment and secret changes currently require a secure VPS update or a
+future secrets-management integration. Application code changes do not.
+
+## 14. First deployment
 
 Before the first GitHub deployment, test manually on the VPS:
 
@@ -693,7 +724,7 @@ normalizes the trailing slash.
 
 
 
-## 13. Deploying a later release
+## 15. Deploying a later release
 
 Merge or push a tested change to `main`:
 
@@ -712,7 +743,7 @@ docker compose --env-file .deploy.env logs --tail=100 control-system-server
 
 The workflow deploys the exact commit SHA, so a release is reproducible.
 
-## 14. Rollback
+## 16. Rollback
 
 Find the previous successful commit SHA in GitHub Actions, then on the VPS:
 
@@ -728,7 +759,7 @@ Do not roll back database migrations automatically. Use backward-compatible
 expand/contract migrations and restore a database backup only through a
 planned recovery procedure.
 
-## 15. Operations and backups
+## 17. Operations and backups
 
 Configure:
 
