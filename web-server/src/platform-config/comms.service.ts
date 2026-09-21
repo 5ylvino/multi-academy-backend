@@ -81,7 +81,7 @@ export class CommsService {
         const msg = error instanceof Error ? error.message : String(error);
         const serverlessHint =
           process.env.VERCEL === '1'
-            ? ' Vercel blocks outbound SMTP — deploy the Nest school server on a VPS (or use Resend).'
+            ? ' The hosted control plane cannot send outbound SMTP — deploy the Nest school server on a VPS (or use Resend).'
             : '';
         return {
           ok: false,

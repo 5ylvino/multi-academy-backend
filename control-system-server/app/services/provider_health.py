@@ -416,7 +416,7 @@ def _ping_cpanel(secrets: dict[str, str], settings: dict) -> dict[str, Any]:
             message="Missing cPanel SMTP password secret",
         )
 
-    # SMTP egress from serverless control (e.g. Vercel) is blocked — delegate to Nest,
+    # SMTP egress from a serverless control plane may be blocked — delegate to Nest,
     # which is the runtime that actually sends school email.
     nest_url = _nest_provider_email_ping_url()
     if nest_url:
@@ -476,7 +476,7 @@ def _ping_cpanel(secrets: dict[str, str], settings: dict) -> dict[str, Any]:
             hint = " Port 465 is often blocked — try port 587 with STARTTLS."
         elif errno == 110 or "timed out" in str(exc).lower():
             hint = (
-                " Control plane cannot reach SMTP (common on Vercel). "
+                " Control plane cannot reach SMTP from its hosted runtime. "
                 "Configure NEST_CONFIG_WEBHOOK_URL so the Test runs from the Nest school server."
             )
         return _result(

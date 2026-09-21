@@ -5,16 +5,16 @@ control platform and school backend.
 
 ## Architecture
 
-The frontend and API domains can remain on Vercel and Contabo:
+The frontend and API domains can remain on their respective hosting platforms:
 
 ```text
-mas.ng          -> Vercel school frontend
-control.mas.ng  -> Vercel control frontend
+mas.ng          -> school frontend host
+control.mas.ng  -> control frontend host
 capi.mas.ng     -> Contabo school API
 bapi.mas.ng     -> Contabo control API
 ```
 
-The mail hostname must point to the cPanel mail server, not Vercel:
+The mail hostname must point to the cPanel mail server, not a frontend host:
 
 ```text
 mail.mas.ng     -> cPanel mail server
@@ -48,8 +48,8 @@ Use the actual cPanel mail-server IP or hostname shown in:
 cPanel → Email Accounts → Connect Devices → Manual Settings
 ```
 
-Do not point `mail.mas.ng` to a Vercel IP. A Vercel address such as
-`216.198.79.1` is not an SMTP server.
+Do not point `mail.mas.ng` to a frontend hosting IP. Frontend hosting
+addresses are not SMTP servers.
 
 ## 2. Verify DNS
 

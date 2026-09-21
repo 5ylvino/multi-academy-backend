@@ -20,7 +20,7 @@ https://capi.mas.ng -> Caddy -> web-server:8001
 https://bapi.mas.ng -> Caddy -> control-system-server:8000
 ```
 
-The Vercel frontend domains remain pointed at Vercel. Only the two API
+The frontend domains remain pointed at their frontend host. Only the two API
 subdomains below point to Contabo. One IP can host many domains. DNS selects
 the IP, and Caddy selects the upstream using the HTTP `Host` header. HTTPS
 certificates are issued independently for both API hostnames.
@@ -32,9 +32,9 @@ service ports remain bound to localhost or the private Docker network.
 
 At the external DNS provider that manages `mas.ng`, create these records:
 
-Keep the Vercel frontend records pointed at Vercel. The control frontend
+Keep the frontend records pointed at their frontend host. The control frontend
 custom domain is now `control.mas.ng`; configure that hostname using the
-CNAME/verification value supplied by Vercel. Only `capi.mas.ng` and
+CNAME/verification value supplied by the hosting provider. Only `capi.mas.ng` and
 `bapi.mas.ng` should point to the Contabo VPS.
 
 
@@ -439,8 +439,8 @@ SCHOOL_INTERNAL_SERVICE_JWT_SECRET=<same value as web-server SERVICE_JWT_SECRET>
 Use the actual managed database, Redis, JWT, encryption, webhook, provider,
 and M2M values. Never put secrets in GitHub workflow YAML or the repository.
 
-`CORS_ORIGINS` contains the browser-facing Vercel/frontend origins, not the
-backend API origin. If your Vercel projects use different custom domains,
+`CORS_ORIGINS` contains the browser-facing frontend origins, not the
+backend API origin. If your frontend projects use different custom domains,
 replace `https://mas.ng` and `https://control.mas.ng` with those exact frontend
 origins. The browser-facing API URLs remain `https://capi.mas.ng` for the
 school frontend and `https://bapi.mas.ng` for the control frontend.

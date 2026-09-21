@@ -12,7 +12,7 @@ settings = get_settings()
 def _sqlalchemy_url(url: str) -> str:
     """Map bare postgres URLs onto psycopg v3 (what requirements.txt ships).
 
-    Neon / Vercel paste links are usually ``postgresql://...``. SQLAlchemy
+    Managed Postgres connection strings are usually ``postgresql://...``. SQLAlchemy
     treats that as the legacy psycopg2 driver and ImportErrors if it is not
     installed. Explicit ``+psycopg`` / ``+asyncpg`` dialects are left alone.
     """

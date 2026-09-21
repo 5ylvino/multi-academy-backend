@@ -17,7 +17,7 @@ export class CryptoService {
     const raw = process.env.ENCRYPTION_KEY || '';
     if (!raw) {
       throw new InternalServerErrorException(
-        'ENCRYPTION_KEY is not configured. Set it in the Vercel project environment variables.',
+        'ENCRYPTION_KEY is not configured. Set it in the production environment variables.',
       );
     }
 

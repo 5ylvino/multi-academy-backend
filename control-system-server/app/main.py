@@ -155,13 +155,7 @@ def _guard_config() -> SecurityConfig:
         enforce_https=False,
         passive_mode=cfg.environment == "development",
         enable_penetration_detection=True,
-        # Vercel injects JWTs / signatures into every function request. Guard's
-        # semantic scanner scores those as "suspicious" and blocks real browsers
-        # (incl. CORS preflight) unless we skip these platform headers.
         excluded_detection_headers={
-            "x-vercel-oidc-token",
-            "x-vercel-proxy-signature",
-            "x-vercel-internal-intra-session",
             "forwarded",
         },
         exclude_paths=[

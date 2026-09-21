@@ -95,7 +95,7 @@ async function bootstrap() {
   });
 
   await app.listen(port);
-  // Helpful in Vercel function logs when diagnosing cold-start crashes.
+  // Helpful in hosted process logs when diagnosing startup crashes.
   // eslint-disable-next-line no-console
   console.log(
     `[ma-sms] listening on ${port}; cors=${allowedOrigins.join('|')}; hasEncryptionKey=${Boolean(
