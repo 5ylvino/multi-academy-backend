@@ -120,10 +120,11 @@ export class ControlPlaneService {
     const normalizedEmail = email.toLowerCase().trim();
     const ds = await this.controlDb.getDataSource();
     const stagingRepo = ds.getRepository(RegistrationStagingEntity);
-    const staging = await stagingRepo.findOne({
+    const registrations = await stagingRepo.find({
       where: { email: normalizedEmail },
       order: { createdAt: 'DESC' },
     });
+    const staging = registrations[0];
     if (!staging || staging.consumedAt || !staging.encryptedPassword) {
       return null;
     }

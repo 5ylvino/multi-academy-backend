@@ -205,7 +205,7 @@ export class AuthService {
       result.verificationToken,
     )}`;
 
-    await this.comms.sendTransactionalEmail('__platform__', {
+    const delivery = await this.comms.sendTransactionalEmail('__platform__', {
       to: result.email,
       subject: 'Your new MA-SMS verification code',
       text: [
@@ -215,6 +215,9 @@ export class AuthService {
       ].join('\n'),
       html: `<p>Your new MA-SMS school verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:8px">${result.verificationToken}</p><p>This code expires in 15 minutes.</p><p><a href="${verificationUrl}">Verify email</a></p>`,
     });
+    this.logger.log(
+      `Registration verification code resent to ${result.email} via ${delivery.providerId} (${delivery.messageId})`,
+    );
     return { message: genericMessage };
   }
 
