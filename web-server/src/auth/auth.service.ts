@@ -215,9 +215,9 @@ export class AuthService {
         text: [
           `Your school app is ready.`,
           `School Business Organisation ID: ${tenant.schoolBusinessOrganisationId}`,
-          `School sign in: ${clientBase}/${tenant.slug}/login`,
+          `Continue setup and join the organization: ${clientBase}/register`,
         ].join('\n'),
-        html: `<p>Your school tenant is ready.</p><p><strong>School Business Organisation ID:</strong> ${tenant.schoolBusinessOrganisationId}</p><p><a href="${clientBase}/${tenant.slug}/login" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px">Open school login</a></p>`,
+        html: `<p>Your school app is ready.</p><p><strong>School Business Organisation ID:</strong> ${tenant.schoolBusinessOrganisationId}</p><p>Use the organization ID to join your existing organization:</p><p><a href="${clientBase}/register" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px">Join Existing Organization</a></p>`,
       });
       this.logger.log(
         `Tenant welcome email sent to ${user.email} via ${welcomeDelivery.providerId} (${welcomeDelivery.messageId})`,
