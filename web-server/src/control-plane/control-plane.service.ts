@@ -116,6 +116,29 @@ export class ControlPlaneService {
     return { id: staging.id, verificationToken };
   }
 
+  async refreshOwnerVerificationToken(email: string) {
+    const normalizedEmail = email.toLowerCase().trim();
+    const ds = await this.controlDb.getDataSource();
+    const stagingRepo = ds.getRepository(RegistrationStagingEntity);
+    const staging = await stagingRepo.findOne({
+      where: { email: normalizedEmail },
+      order: { createdAt: 'DESC' },
+    });
+    if (!staging || staging.consumedAt || !staging.encryptedPassword) {
+      return null;
+    }
+
+    const verificationToken = randomInt(0, 1_000_000)
+      .toString()
+      .padStart(6, '0');
+    staging.verificationTokenHash = createHash('sha256')
+      .update(verificationToken)
+      .digest('hex');
+    staging.verificationExpiresAt = new Date(Date.now() + 15 * 60_000);
+    await stagingRepo.save(staging);
+    return { email: normalizedEmail, verificationToken };
+  }
+
   async verifyOwnerEmail(token: string): Promise<TenantConfig> {
     const tokenHash = createHash('sha256')
       .update(token || '')

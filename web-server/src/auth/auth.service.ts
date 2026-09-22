@@ -190,6 +190,34 @@ export class AuthService {
     }
   }
 
+  async resendVerificationEmail(email: string) {
+    const result = await this.controlPlaneService.refreshOwnerVerificationToken(email);
+    const genericMessage =
+      'If an incomplete registration exists for that email, a new verification code has been sent.';
+    if (!result) return { message: genericMessage };
+
+    const clientBase = (
+      process.env.CLIENT_APP_URL ||
+      process.env.CORS_ORIGINS?.split(',')[0]?.trim() ||
+      'http://localhost:3000'
+    ).replace(/\/$/, '');
+    const verificationUrl = `${clientBase}/register/verify?token=${encodeURIComponent(
+      result.verificationToken,
+    )}`;
+
+    await this.comms.sendTransactionalEmail('__platform__', {
+      to: result.email,
+      subject: 'Your new MA-SMS verification code',
+      text: [
+        `Your new MA-SMS school verification code is: ${result.verificationToken}`,
+        'This code expires in 15 minutes.',
+        `Verify email: ${verificationUrl}`,
+      ].join('\n'),
+      html: `<p>Your new MA-SMS school verification code is:</p><p style="font-size:28px;font-weight:700;letter-spacing:8px">${result.verificationToken}</p><p>This code expires in 15 minutes.</p><p><a href="${verificationUrl}">Verify email</a></p>`,
+    });
+    return { message: genericMessage };
+  }
+
   private async finishVerifiedTenantOnboarding(
     tenant: Awaited<ReturnType<ControlPlaneService['verifyOwnerEmail']>>,
     email: string,

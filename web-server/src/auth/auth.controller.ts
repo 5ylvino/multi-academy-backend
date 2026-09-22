@@ -10,6 +10,7 @@ import { RefreshDto } from './dto/refresh.dto';
 import { PasswordResetConfirmDto, PasswordResetRequestDto } from './dto/password-reset.dto';
 import { Public } from '../common/auth/public.decorator';
 import { VerifyEmailDto } from './dto/verify-email.dto';
+import { ResendVerificationDto } from './dto/resend-verification.dto';
 
 @Controller('auth')
 export class AuthController {
@@ -35,6 +36,14 @@ export class AuthController {
   async verifyEmail(@Body() body: VerifyEmailDto) {
     const data = await this.authService.verifyEmail(body.token);
     return ok('Email verified and school onboarding completed', data);
+  }
+
+  @Post('register/resend-verification')
+  @Public()
+  @Throttle({ default: { limit: 3, ttl: 60_000 } })
+  async resendVerification(@Body() body: ResendVerificationDto) {
+    const data = await this.authService.resendVerificationEmail(body.email);
+    return ok('If eligible, a new verification email has been sent', data);
   }
 
   @Post('register/step-2')
