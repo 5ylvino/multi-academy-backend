@@ -4,6 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ControlPlaneService } from '../control-plane/control-plane.service';
+import { TenantProvisioningService } from '../control-plane/tenant-provisioning.service';
 import { TenantConnectionService } from '../database/tenant-connection.service';
 import { ControlDbService } from '../database/control-db.service';
 import { randomToken } from '../common/utils/id.util';
@@ -50,6 +51,7 @@ export class OrganizationsService {
 
   constructor(
     private readonly controlPlane: ControlPlaneService,
+    private readonly tenantProvisioning: TenantProvisioningService,
     private readonly tenantConnections: TenantConnectionService,
     private readonly controlDb: ControlDbService,
     private readonly controlApi: ControlApiClient,
@@ -402,10 +404,17 @@ export class OrganizationsService {
         userId,
       ],
     );
+    const tenant = await this.controlPlane.getTenantById(tenantId);
+    if (!tenant) throw new NotFoundException('Tenant not found');
+    await this.tenantProvisioning.seedDefaultsForSchoolLevels(
+      tenant.dbUri,
+      body.schoolLevels || [],
+    );
 
     return {
       id: orgId,
       name: body.name,
+      schoolLevels: body.schoolLevels || [],
       createdBy: userId,
     };
   }
@@ -567,6 +576,14 @@ export class OrganizationsService {
     await runDbQuery(ds, sql, values);
     const updated = await this.getBusinessOrganizationById(tenantId, id);
     if (updated) {
+      if (body.schoolLevels !== undefined) {
+        const tenant = await this.controlPlane.getTenantById(tenantId);
+        if (!tenant) throw new NotFoundException('Tenant not found');
+        await this.tenantProvisioning.seedDefaultsForSchoolLevels(
+          tenant.dbUri,
+          body.schoolLevels || [],
+        );
+      }
       await this.syncPublicBranding({ tenantId, org: updated });
     }
     return updated;

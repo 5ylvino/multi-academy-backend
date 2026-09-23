@@ -55,7 +55,6 @@ export class TenantProvisioningService {
 
     // 2) Run tenant migrations using TypeORM targeting tenant.dbUri
     await runTenantMigrations(tenant.dbUri);
-    await this.seedDefaults(tenant.dbUri);
   }
 
   private stableId(prefix: string, value: string) {
@@ -65,7 +64,20 @@ export class TenantProvisioningService {
       .slice(0, 24)}`;
   }
 
-  private async seedDefaults(dbUri: string): Promise<void> {
+  async seedDefaultsForSchoolLevels(
+    dbUri: string,
+    selectedSchoolLevels: string[],
+  ): Promise<void> {
+    const selected = new Set(
+      (selectedSchoolLevels || []).map((level) => String(level).toLowerCase()),
+    );
+    const includesNursery = selected.has('nursery');
+    const includesPrimary = selected.has('primary');
+    const includesSecondary =
+      selected.has('secondary') || selected.has('jss') || selected.has('sss');
+
+    if (!includesNursery && !includesPrimary && !includesSecondary) return;
+
     const ds = new DataSource(buildTenantDataSourceOptions(dbUri));
     await ds.initialize();
     try {
@@ -94,26 +106,26 @@ export class TenantProvisioningService {
         ],
       );
       const levels = [
-        ...Array.from({ length: 3 }, (_, i) => [
+        ...(includesNursery ? Array.from({ length: 3 }, (_, i) => [
           `Nursery ${i + 1}`,
           `NUR${i + 1}`,
           'nursery',
-        ]),
-        ...Array.from({ length: 6 }, (_, i) => [
+        ]) : []),
+        ...(includesPrimary ? Array.from({ length: 6 }, (_, i) => [
           `Primary ${i + 1}`,
           `PRI${i + 1}`,
           'primary',
-        ]),
-        ...Array.from({ length: 3 }, (_, i) => [
+        ]) : []),
+        ...(includesSecondary ? Array.from({ length: 3 }, (_, i) => [
           `JSS ${i + 1}`,
           `JSS${i + 1}`,
           'jss',
-        ]),
-        ...Array.from({ length: 3 }, (_, i) => [
+        ]) : []),
+        ...(includesSecondary ? Array.from({ length: 3 }, (_, i) => [
           `SSS ${i + 1}`,
           `SSS${i + 1}`,
           'sss',
-        ]),
+        ]) : []),
       ] as const;
       for (const [name, code, level] of levels) {
         await ds.query(
@@ -130,10 +142,6 @@ export class TenantProvisioningService {
           subjects: [
             ['English Language', 'english_language'],
             ['Mathematics', 'mathematics'],
-            ['Basic Science', 'basic_science'],
-            ['Social Studies', 'social_studies'],
-            ['Cultural & Creative Arts', 'cultural_creative_arts'],
-            ['Physical & Health Education', 'physical_health_education'],
           ],
         },
         {
@@ -142,18 +150,6 @@ export class TenantProvisioningService {
           subjects: [
             ['English Language', 'english_language'],
             ['Mathematics', 'mathematics'],
-            ['Basic Science', 'basic_science'],
-            ['Basic Technology', 'basic_technology'],
-            ['Social Studies', 'social_studies'],
-            ['Civic Education', 'civic_education'],
-            ['Computer Studies', 'computer_studies'],
-            ['Agricultural Science', 'agricultural_science'],
-            ['Christian Religious Studies', 'christian_religious_studies'],
-            ['Islamic Religious Studies', 'islamic_religious_studies'],
-            ['French', 'french'],
-            ['Physical & Health Education', 'physical_health_education'],
-            ['Cultural & Creative Arts', 'cultural_creative_arts'],
-            ['Home Economics', 'home_economics'],
           ],
         },
         {
@@ -162,24 +158,13 @@ export class TenantProvisioningService {
           subjects: [
             ['English Language', 'english_language'],
             ['Mathematics', 'mathematics'],
-            ['Basic Technology', 'basic_technology'],
-            ['Civic Education', 'civic_education'],
-            ['Computer Studies', 'computer_studies'],
-            ['Business Studies', 'business_studies'],
-            ['Agricultural Science', 'agricultural_science'],
-            ['Christian Religious Studies', 'christian_religious_studies'],
-            ['Islamic Religious Studies', 'islamic_religious_studies'],
-            ['French', 'french'],
-            ['Physical & Health Education', 'physical_health_education'],
-            ['Biology', 'biology'],
-            ['Chemistry', 'chemistry'],
-            ['Physics', 'physics'],
-            ['Economics', 'economics'],
-            ['Government', 'government'],
-            ['Literature-in-English', 'literature'],
           ],
         },
-      ] as const;
+      ].filter((group) =>
+        (group.level === 'nursery' && includesNursery) ||
+        (group.level === 'primary' && includesPrimary) ||
+        (group.level === 'secondary' && includesSecondary),
+      );
       for (const group of subjectGroups) {
         for (const [name, code] of group.subjects) {
         const category = /biology|chemistry|physics|science/i.test(name)
