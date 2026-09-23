@@ -53,6 +53,11 @@ def update_security_settings(
     db: Session = Depends(get_db),
 ):
     row = _ensure_security(db)
+    if body.idle_timeout_minutes is not None and staff.user.role != "owner":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Only the owner can change the inactivity timeout",
+        )
     before = {
         "mfa_required": row.mfa_required,
         "ip_allowlist_enforced": row.ip_allowlist_enforced,

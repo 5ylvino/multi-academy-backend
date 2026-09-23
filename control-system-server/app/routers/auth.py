@@ -156,11 +156,36 @@ def refresh(body: RefreshRequest, request: Request, db: Session = Depends(get_db
         if session is None or session.revoked_at is not None:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session revoked")
         now = datetime.now(timezone.utc)
+        policy = db.get(SecuritySettings, 1)
+        settings = get_settings()
+        idle_minutes = (
+            policy.idle_timeout_minutes
+            if policy and policy.idle_timeout_minutes
+            else settings.staff_idle_timeout_minutes
+        )
         exp = session.expires_at
         if exp.tzinfo is None:
             exp = exp.replace(tzinfo=timezone.utc)
         if exp < now:
             raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Session expired")
+        last_seen = session.last_seen_at
+        if (
+            last_seen is not None
+            and idle_minutes
+            and now - (
+                last_seen.replace(tzinfo=timezone.utc)
+                if last_seen.tzinfo is None
+                else last_seen
+            )
+            > timedelta(minutes=idle_minutes)
+        ):
+            session.revoked_at = now
+            session.revoke_reason = "idle_timeout"
+            db.commit()
+            raise HTTPException(
+                status.HTTP_401_UNAUTHORIZED,
+                f"Session idle for more than {idle_minutes} minutes",
+            )
 
     user = db.get(PlatformUser, int(payload["sub"]))
     if user is None or not user.is_active:
@@ -179,6 +204,22 @@ def refresh(body: RefreshRequest, request: Request, db: Session = Depends(get_db
 @router.get("/me", response_model=StaffUserOut)
 def me(staff: StaffContext = Depends(get_current_staff)):
     return _user_out(staff.user)
+
+
+@router.get("/session-policy")
+def session_policy(
+    _: StaffContext = Depends(get_current_staff),
+    db: Session = Depends(get_db),
+):
+    policy = db.get(SecuritySettings, 1)
+    settings = get_settings()
+    return {
+        "idle_timeout_minutes": (
+            policy.idle_timeout_minutes
+            if policy and policy.idle_timeout_minutes
+            else settings.staff_idle_timeout_minutes
+        ),
+    }
 
 
 @router.get("/sessions", response_model=list[StaffSessionOut])
