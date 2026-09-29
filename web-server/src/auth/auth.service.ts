@@ -240,15 +240,18 @@ export class AuthService {
       // The tenant has just been created and cannot have tenant-scoped
       // provider configuration yet. Use the same global platform provider
       // that delivered the verification email.
+      const joinOrganizationUrl = `${clientBase}/register?type=existing&sbo=${encodeURIComponent(
+        tenant.schoolBusinessOrganisationId,
+      )}`;
       const welcomeDelivery = await this.comms.sendTransactionalEmail('__platform__', {
         to: user.email,
         subject: `Welcome to ${tenant.name}`,
         text: [
           `Your school app is ready.`,
           `School Business Organisation ID: ${tenant.schoolBusinessOrganisationId}`,
-          `Continue setup and join the organization: ${clientBase}/register`,
+          `Continue setup and join the organization: ${joinOrganizationUrl}`,
         ].join('\n'),
-        html: `<p>Your school app is ready.</p><p><strong>School Business Organisation ID:</strong> ${tenant.schoolBusinessOrganisationId}</p><p>Use the organization ID to join your existing organization:</p><p><a href="${clientBase}/register" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px">Join Existing Organization</a></p>`,
+        html: `<p>Your school app is ready.</p><p><strong>School Business Organisation ID:</strong> ${tenant.schoolBusinessOrganisationId}</p><p>Use the organization ID to join your existing organization:</p><p><a href="${joinOrganizationUrl}" style="display:inline-block;padding:12px 18px;background:#2563eb;color:#fff;text-decoration:none;border-radius:6px">Join Existing Organization</a></p>`,
       });
       this.logger.log(
         `Tenant welcome email sent to ${user.email} via ${welcomeDelivery.providerId} (${welcomeDelivery.messageId})`,
