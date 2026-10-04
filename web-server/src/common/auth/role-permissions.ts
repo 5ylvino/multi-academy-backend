@@ -141,6 +141,8 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
 
   it_admin: [
     'ai:use',
+    // Read-only org context is required to add users (school levels, tenant name).
+    'organization:view',
     'users:create',
     'users:read',
     'users:update',

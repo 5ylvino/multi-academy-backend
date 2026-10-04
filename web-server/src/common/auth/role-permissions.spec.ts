@@ -34,6 +34,14 @@ describe('role-permissions catalog', () => {
     }
   });
 
+  it('lets it_admin create users and read org context for that flow', () => {
+    const perms = new Set(ROLE_PERMISSIONS.it_admin);
+    expect(perms.has('users:create')).toBe(true);
+    expect(perms.has('users:manage')).toBe(true);
+    expect(perms.has('organization:view')).toBe(true);
+    expect(perms.has('roles:assign')).toBe(true);
+  });
+
   it('keeps finance writes off school_admin and director', () => {
     for (const role of ['school_admin', 'director'] as const) {
       const perms = new Set(ROLE_PERMISSIONS[role]);

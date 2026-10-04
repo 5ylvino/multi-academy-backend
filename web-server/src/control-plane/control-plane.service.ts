@@ -525,6 +525,29 @@ export class ControlPlaneService {
     );
   }
 
+  /**
+   * Custom school login slug from public_org_branding (e.g. kristbethel-college).
+   * This can differ from tenants.slug, which is created at provisioning time.
+   */
+  async getPublicLoginSlug(tenantId: string): Promise<string | null> {
+    const ds = await this.controlDb.getDataSource();
+    try {
+      const rows = await ds.query(
+        `SELECT slug FROM public_org_branding
+         WHERE tenant_id = $1
+         ORDER BY updated_at DESC
+         LIMIT 1`,
+        [tenantId],
+      );
+      const slug = String(rows?.[0]?.slug || '')
+        .trim()
+        .toLowerCase();
+      return isValidSchoolSlug(slug) ? slug : null;
+    } catch {
+      return null;
+    }
+  }
+
   async searchReadySchools(query: string): Promise<Array<{ name: string; slug: string }>> {
     const normalizedQuery = String(query || '').trim().replace(/\s+/g, ' ');
     if (normalizedQuery.length < 1 || normalizedQuery.length > 100) {

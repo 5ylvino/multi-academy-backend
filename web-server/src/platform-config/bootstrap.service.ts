@@ -23,13 +23,14 @@ export class BootstrapService {
     const tenantId = user.tenant_id;
     const userId = user.user_id || user.sub;
 
-    const [effective, providerStatus, tenant, dbUser, organization] =
+    const [effective, providerStatus, tenant, dbUser, organization, brandingSlug] =
       await Promise.all([
         this.featureFlags.getEffectiveFeatures(tenantId),
         this.providers.getProviderStatus(tenantId),
         this.controlPlane.getTenantById(tenantId),
         this.controlPlane.getUserById(tenantId, userId),
         this.organizations.getCurrentOrganization(tenantId),
+        this.controlPlane.getPublicLoginSlug(tenantId),
       ]);
 
     if (!tenant) {
@@ -41,11 +42,12 @@ export class BootstrapService {
 
     const permissions = effectivePermissions(dbUser.roles, dbUser.permissions);
     const tenantSlug = tenant.slug;
+    const loginSlug = brandingSlug || organization?.slug || tenantSlug;
 
     const orgBranding = organization
       ? {
           id: organization.id,
-          slug: tenantSlug,
+          slug: loginSlug,
           name: organization.name,
           logo: organization.logo ?? null,
           motto: organization.motto ?? null,
@@ -62,7 +64,7 @@ export class BootstrapService {
         phone: dbUser.phone ?? null,
         role: dbUser.roles[0],
         roles: dbUser.roles,
-        tenantSlug,
+        tenantSlug: loginSlug,
         schoolLevel: effectiveSchoolLevel(
           dbUser.schoolLevel,
           dbUser.roles,
