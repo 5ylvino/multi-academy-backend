@@ -152,6 +152,15 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     'accounts:manage',
     'accounts:reset',
     'roles:assign',
+    // Academic catalog access for Additional Details during user provisioning:
+    // list/create classes & subjects, assign class teacher, enroll students, link parents.
+    'classes:read',
+    'classes:create',
+    'classes:update',
+    'subjects:read',
+    'subjects:create',
+    'students:read',
+    'students:update',
     'biometric:configure',
     'biometric:verify',
     'audit_logs:view',
@@ -245,6 +254,8 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     'students:update',
     'student_records:view',
     'student_records:update',
+    // Class roster context for registration / enrollment workflows.
+    'classes:read',
     'correspondence:manage',
     'calendar:manage',
     'cbt:read',
@@ -383,6 +394,8 @@ export const ROLE_PERMISSIONS: Record<RoleId, string[]> = {
     'notifications:view',
     'dashboards:view',
     'students:read',
+    // Fee structures are often scoped by class; bursar must list the catalog.
+    'classes:read',
   ],
 
   student: [

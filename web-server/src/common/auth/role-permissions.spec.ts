@@ -42,6 +42,31 @@ describe('role-permissions catalog', () => {
     expect(perms.has('roles:assign')).toBe(true);
   });
 
+  it('lets it_admin load academic catalogs for Additional Details user provisioning', () => {
+    const perms = new Set(ROLE_PERMISSIONS.it_admin);
+    for (const required of [
+      'classes:read',
+      'classes:create',
+      'classes:update',
+      'subjects:read',
+      'subjects:create',
+      'students:read',
+      'students:update',
+    ]) {
+      expect(perms.has(required)).toBe(true);
+    }
+    // Keep destructive academic structure ops with school_admin.
+    expect(perms.has('classes:delete')).toBe(false);
+    expect(perms.has('subjects:delete')).toBe(false);
+    expect(perms.has('results:approve')).toBe(false);
+    expect(perms.has('payments:process')).toBe(false);
+  });
+
+  it('gives bursar and administrative_staff class catalog reads for their workflows', () => {
+    expect(ROLE_PERMISSIONS.bursar).toContain('classes:read');
+    expect(ROLE_PERMISSIONS.administrative_staff).toContain('classes:read');
+  });
+
   it('keeps finance writes off school_admin and director', () => {
     for (const role of ['school_admin', 'director'] as const) {
       const perms = new Set(ROLE_PERMISSIONS[role]);
