@@ -62,6 +62,8 @@ TENANT_SCOPED_TABLES: tuple[str, ...] = (
     "communication_participants",
     "communication_messages",
     "communication_notifications",
+    "safeguarding_concerns",
+    "safeguarding_entries",
     "platform_subscriptions",
     "platform_invoices",
     "platform_invoice_checkouts",

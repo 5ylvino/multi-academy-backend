@@ -28,6 +28,7 @@ from app.domain.identity.roles import Realm
 from app.domain.inventory.repositories import InventoryRepository
 from app.domain.payroll.repositories import PayrollRepository
 from app.domain.platform.repositories import FeatureFlagRepository, PlanRepository
+from app.domain.safeguarding.repositories import SafeguardingRepository
 from app.domain.shared.entity import AggregateRoot
 from app.domain.shared.events import DomainEvent
 from app.domain.subscriptions.repositories import SubscriptionRepository
@@ -336,6 +337,9 @@ class UnitOfWork(Protocol):
 
     @property
     def communication(self) -> CommunicationRepository: ...
+
+    @property
+    def safeguarding(self) -> SafeguardingRepository: ...
 
     @property
     def audit_log(self) -> AuditLogRepository: ...

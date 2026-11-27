@@ -79,6 +79,8 @@ from app.use_cases.platform.feature_flags import (
     UpsertFlag,
 )
 from app.use_cases.platform.plans import ListPlans, UpsertPlan
+from app.use_cases.safeguarding.alerts import SendUrgentConcernAlert
+from app.use_cases.safeguarding.cases import Safeguarding
 from app.use_cases.shared.ports import (
     AccessClaims,
     EmailSender,
@@ -154,6 +156,7 @@ class UseCases:
     payroll: Payroll
     announcements: Announcements
     conversations: Conversations
+    safeguarding: Safeguarding
 
 
 @dataclass
@@ -473,6 +476,7 @@ def build_container(
         payroll=Payroll(uow_factory=uow, clock=clock, school_time=school_time, box=secret_box),
         announcements=Announcements(uow_factory=uow, clock=clock),
         conversations=Conversations(uow_factory=uow, clock=clock, limiter=limiter),
+        safeguarding=Safeguarding(uow_factory=uow, clock=clock, box=secret_box),
         spending=Spending(
             uow_factory=uow, clock=clock, school_time=school_time, store=object_store
         ),
@@ -502,6 +506,9 @@ def build_container(
     ]
     handlers["communication.urgent_announcement"] = [
         SendUrgentAnnouncement(email=email, uow_factory=uow, school_app_url=settings.school_app_url)
+    ]
+    handlers["safeguarding.urgent_concern"] = [
+        SendUrgentConcernAlert(email=email, uow_factory=uow, school_app_url=settings.school_app_url)
     ]
     outbox = OutboxRelay(session_factory, handlers)
     return Container(

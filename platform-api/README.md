@@ -147,6 +147,8 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | POST/PUT | `/api/v1/announcements`, `/{id}`, `/{id}/withdraw`; GET `/announcements/manage` | `announcements:create` (teachers: their classes only; `announcements:school_wide` for everyone); urgent needs `emergency:send` |
 | GET/POST | `/api/v1/conversations`, `/{id}`, `/{id}/messages` | participants; `correspondence:manage` to start; `conversations:oversee` to review |
 | GET/POST | `/api/v1/notifications`, `/unread`, `/read` | the signed-in person |
+| POST | `/api/v1/safeguarding/concerns`; GET `/safeguarding/my-reports` | `safeguarding:report` (every staff role) |
+| GET/POST | `/api/v1/safeguarding/concerns`, `/{id}`, `/{id}/notes`, `/referrals`, `/lead`, `/status`, `/counts` | `safeguarding:manage` (safeguarding leads) |
 | GET | `/api/v1/subscription`, `/subscription/invoices` | `organization:view`: the school's plan and platform invoices |
 | POST | `/api/v1/subscription/invoices/{id}/pay`, `/confirm` | `organization:update` / `organization:view` |
 | GET/POST | `/api/v1/platform-invoices/{id}`, `/pay`, `/confirm` `?token=` | anyone with the emailed pay link (works while suspended) |
@@ -247,6 +249,22 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
 - **Inbox**: each new message gives the other participants one notice per conversation (later
   messages refresh it rather than stacking up); opening the conversation clears it.
   `/notifications/unread` gives the badge counts for notices and announcements.
+
+## Safeguarding
+
+- Any member of staff records a concern about a student: category, level (low to urgent), what
+  they saw or heard, when, and what they did at the time. They can later see what they reported
+  and its status, nothing more. Parents and students never see concerns.
+- Safeguarding leads (`safeguarding:manage`: director, principal and head teacher by default;
+  grant it to the school's designated lead as a capability) see every case and build its
+  chronology: notes, contact with parents, referrals to agencies with their reference, a case
+  lead, and closing or reopening with the reason. Filter by student for a child's history.
+- Leads get an inbox notice for every concern; urgent ones are also emailed at once
+  (`safeguarding.urgent_concern`). Neither carries names or details.
+- The account and every chronology entry are AES-GCM encrypted before they reach the database.
+  The app role can't delete either table, can only append to the chronology, and can update only
+  a concern's status, lead and closed date (column grants). Each time a lead opens a case it is
+  logged; the activity log never holds the text. Responses are sent with `Cache-Control: no-store`.
 
 ## Online payments (Paystack)
 

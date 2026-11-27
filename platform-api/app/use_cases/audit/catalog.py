@@ -18,6 +18,7 @@ class AuditCategory(StrEnum):
     PLATFORM = "platform"
     AUDIT = "audit"
     COMMUNICATION = "communication"
+    SAFEGUARDING = "safeguarding"
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +38,7 @@ _S, _P, _A, _T, _F, _SC, _PL, _AU = (
     AuditCategory.AUDIT,
 )
 _C = AuditCategory.COMMUNICATION
+_SG = AuditCategory.SAFEGUARDING
 
 ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
     {
@@ -140,6 +142,16 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "communication.conversation_reviewed": ActionInfo(
             "Reviewed a conversation they are not in", _C
         ),
+        # Safeguarding (the activity log never holds what was written)
+        "safeguarding.concern_reported": ActionInfo("Recorded a safeguarding concern", _SG),
+        "safeguarding.case_opened": ActionInfo("Opened a safeguarding case", _SG),
+        "safeguarding.note_added": ActionInfo("Added a note to a safeguarding case", _SG),
+        "safeguarding.parent_contact_recorded": ActionInfo(
+            "Recorded contact with parents on a safeguarding case", _SG
+        ),
+        "safeguarding.referred": ActionInfo("Referred a safeguarding case to an agency", _SG),
+        "safeguarding.lead_assigned": ActionInfo("Assigned a safeguarding case lead", _SG),
+        "safeguarding.status_changed": ActionInfo("Changed a safeguarding case's status", _SG),
         # School account
         "tenant.registered": ActionInfo("Signed up the school", _SC),
         "tenant.email_verified": ActionInfo("Confirmed the school's email", _SC),
