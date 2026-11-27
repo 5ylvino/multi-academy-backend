@@ -33,6 +33,10 @@ from app.infrastructure.persistence.repositories.inventory import SqlInventoryRe
 from app.infrastructure.persistence.repositories.online_payments import (
     SqlOnlinePaymentRepository,
 )
+from app.infrastructure.persistence.repositories.operations import (
+    SqlClinicRepository,
+    SqlGateRepository,
+)
 from app.infrastructure.persistence.repositories.payroll import SqlPayrollRepository
 from app.infrastructure.persistence.repositories.platform import (
     SqlFeatureFlagRepository,
@@ -101,6 +105,8 @@ class SqlAlchemyUnitOfWork:
         self.payroll = SqlPayrollRepository(s, self._scope)
         self.communication = SqlCommunicationRepository(s, self._scope)
         self.safeguarding = SqlSafeguardingRepository(s, self._scope)
+        self.clinic = SqlClinicRepository(s, self._scope)
+        self.gate = SqlGateRepository(s, self._scope)
         return self
 
     async def __aexit__(

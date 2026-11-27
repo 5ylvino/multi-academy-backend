@@ -1,0 +1,1 @@
+"""Clinic and gate routes."""

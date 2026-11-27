@@ -149,6 +149,11 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET/POST | `/api/v1/notifications`, `/unread`, `/read` | the signed-in person |
 | POST | `/api/v1/safeguarding/concerns`; GET `/safeguarding/my-reports` | `safeguarding:report` (every staff role) |
 | GET/POST | `/api/v1/safeguarding/concerns`, `/{id}`, `/{id}/notes`, `/referrals`, `/lead`, `/status`, `/counts` | `safeguarding:manage` (safeguarding leads) |
+| GET/PUT | `/api/v1/clinic/students/{id}/record` | the student, their guardians, or `clinic:manage` (nurse); staff views are logged |
+| GET | `/api/v1/clinic/students/{id}/alert` | staff with `clinic:read`: allergies and the shared note only |
+| GET/POST/PATCH | `/api/v1/clinic/visits`, `/{id}`, `/{id}/close` | `clinic:manage`; guardians list their child's visits |
+| GET/POST/DELETE | `/api/v1/gate/students/{id}/collectors`, `/gate/collectors/{id}` | the student's guardians or `students:update` (office) |
+| GET/POST | `/api/v1/gate/students/{id}/pickup`, `/gate/releases`; `/gate/visits`, `/{id}/sign-out` | `gate:manage` (guard, office); `gate:read` for leaders; guardians see their child's releases |
 | GET | `/api/v1/subscription`, `/subscription/invoices` | `organization:view`: the school's plan and platform invoices |
 | POST | `/api/v1/subscription/invoices/{id}/pay`, `/confirm` | `organization:update` / `organization:view` |
 | GET/POST | `/api/v1/platform-invoices/{id}`, `/pay`, `/confirm` `?token=` | anyone with the emailed pay link (works while suspended) |
@@ -265,6 +270,32 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
   The app role can't delete either table, can only append to the chronology, and can update only
   a concern's status, lead and closed date (column grants). Each time a lead opens a case it is
   logged; the activity log never holds the text. Responses are sent with `Cache-Control: no-store`.
+
+## Clinic
+
+- Each student has one health record: blood group, genotype, allergies, conditions, medicines,
+  notes, family doctor, and a short alert the school shares with teachers ("Asthma: inhaler in
+  school bag"). Guardians keep it up to date; the nurse can too.
+- Teachers see only the alert and allergies (`/alert`). The full record is for the nurse, the
+  guardians and the student. Each time staff open a full record it is logged.
+- The nurse books a student in, records assessment, treatment, temperature and medicine given,
+  then closes the visit with an outcome. Guardians get an inbox notice for every visit. If the
+  child is sent home or referred to hospital they are also emailed
+  (`operations.clinic_visit_closed`), with no clinical detail.
+- Record details and visit notes are AES-GCM encrypted before they reach the database. The
+  activity log records which fields changed, never their values.
+
+## Gate
+
+- Guardians (or the office) list the adults who may collect their child: every day until
+  removed, or one day only. Removing someone takes effect at once and is kept for the record.
+- At pickup the guard opens the student's list for today and records one decision: released to a
+  guardian, released to a listed adult, or refused (with the person's name and what happened).
+  A listed adult can't collect a child they aren't listed for. Guardians are told either way.
+- Release decisions are append-only (the app role can't change or delete them). Guardians see
+  their child's history; leaders see the school's last 90 days.
+- The visitor book signs visitors in (purpose, the member of staff they're seeing, badge,
+  vehicle) and out. `GET /gate/visits?on_site=true` is the fire register.
 
 ## Online payments (Paystack)
 

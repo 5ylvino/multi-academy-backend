@@ -19,6 +19,7 @@ class AuditCategory(StrEnum):
     AUDIT = "audit"
     COMMUNICATION = "communication"
     SAFEGUARDING = "safeguarding"
+    WELFARE = "welfare"
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +40,7 @@ _S, _P, _A, _T, _F, _SC, _PL, _AU = (
 )
 _C = AuditCategory.COMMUNICATION
 _SG = AuditCategory.SAFEGUARDING
+_W = AuditCategory.WELFARE
 
 ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
     {
@@ -152,6 +154,18 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "safeguarding.referred": ActionInfo("Referred a safeguarding case to an agency", _SG),
         "safeguarding.lead_assigned": ActionInfo("Assigned a safeguarding case lead", _SG),
         "safeguarding.status_changed": ActionInfo("Changed a safeguarding case's status", _SG),
+        # Welfare: clinic and gate (the activity log never holds medical detail)
+        "clinic.record_viewed": ActionInfo("Viewed a student's health record", _W),
+        "clinic.record_updated": ActionInfo("Updated a student's health record", _W),
+        "clinic.visit_opened": ActionInfo("Booked a student into the clinic", _W),
+        "clinic.visit_updated": ActionInfo("Updated a clinic visit", _W),
+        "clinic.visit_closed": ActionInfo("Closed a clinic visit", _W),
+        "gate.collector_added": ActionInfo("Added an adult who may collect a student", _W),
+        "gate.collector_removed": ActionInfo("Removed an adult who may collect a student", _W),
+        "gate.student_released": ActionInfo("Released a student at the gate", _W),
+        "gate.student_refused": ActionInfo("Refused to release a student at the gate", _W),
+        "gate.visitor_signed_in": ActionInfo("Signed a visitor in", _W),
+        "gate.visitor_signed_out": ActionInfo("Signed a visitor out", _W),
         # School account
         "tenant.registered": ActionInfo("Signed up the school", _SC),
         "tenant.email_verified": ActionInfo("Confirmed the school's email", _SC),

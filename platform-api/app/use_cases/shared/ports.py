@@ -26,6 +26,7 @@ from app.domain.identity.repositories import (
 )
 from app.domain.identity.roles import Realm
 from app.domain.inventory.repositories import InventoryRepository
+from app.domain.operations.repositories import ClinicRepository, GateRepository
 from app.domain.payroll.repositories import PayrollRepository
 from app.domain.platform.repositories import FeatureFlagRepository, PlanRepository
 from app.domain.safeguarding.repositories import SafeguardingRepository
@@ -340,6 +341,12 @@ class UnitOfWork(Protocol):
 
     @property
     def safeguarding(self) -> SafeguardingRepository: ...
+
+    @property
+    def clinic(self) -> ClinicRepository: ...
+
+    @property
+    def gate(self) -> GateRepository: ...
 
     @property
     def audit_log(self) -> AuditLogRepository: ...

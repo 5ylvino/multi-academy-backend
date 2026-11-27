@@ -70,6 +70,9 @@ from app.use_cases.identity.session_issuer import SessionIssuer
 from app.use_cases.identity.sign_in import SignIn
 from app.use_cases.identity.sign_out import SignOut
 from app.use_cases.inventory.stock import Inventory
+from app.use_cases.operations.clinic import Clinic
+from app.use_cases.operations.gate import Gate
+from app.use_cases.operations.notifications import SendUrgentClinicEmail
 from app.use_cases.payroll.notifications import SendPayslipReadyEmails
 from app.use_cases.payroll.runs import Payroll
 from app.use_cases.platform.feature_flags import (
@@ -157,6 +160,8 @@ class UseCases:
     announcements: Announcements
     conversations: Conversations
     safeguarding: Safeguarding
+    clinic: Clinic
+    gate: Gate
 
 
 @dataclass
@@ -477,6 +482,8 @@ def build_container(
         announcements=Announcements(uow_factory=uow, clock=clock),
         conversations=Conversations(uow_factory=uow, clock=clock, limiter=limiter),
         safeguarding=Safeguarding(uow_factory=uow, clock=clock, box=secret_box),
+        clinic=Clinic(uow_factory=uow, clock=clock, box=secret_box),
+        gate=Gate(uow_factory=uow, clock=clock, school_time=school_time),
         spending=Spending(
             uow_factory=uow, clock=clock, school_time=school_time, store=object_store
         ),
@@ -509,6 +516,9 @@ def build_container(
     ]
     handlers["safeguarding.urgent_concern"] = [
         SendUrgentConcernAlert(email=email, uow_factory=uow, school_app_url=settings.school_app_url)
+    ]
+    handlers["operations.clinic_visit_closed"] = [
+        SendUrgentClinicEmail(email=email, uow_factory=uow, school_app_url=settings.school_app_url)
     ]
     outbox = OutboxRelay(session_factory, handlers)
     return Container(

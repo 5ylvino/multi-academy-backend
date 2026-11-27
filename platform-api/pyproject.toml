@@ -138,4 +138,5 @@ modules = [
   "app.domain.payroll",
   "app.domain.communication",
   "app.domain.safeguarding",
+  "app.domain.operations",
 ]
