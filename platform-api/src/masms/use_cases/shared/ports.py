@@ -11,6 +11,7 @@ from uuid import UUID
 
 from masms.domain.academics.repositories import AcademicsRepository
 from masms.domain.attendance.repositories import AttendanceRepository
+from masms.domain.finance.repositories import FinanceRepository
 from masms.domain.identity.repositories import (
     InviteRepository,
     MfaRepository,
@@ -163,6 +164,9 @@ class UnitOfWork(Protocol):
 
     @property
     def academics(self) -> AcademicsRepository: ...
+
+    @property
+    def finance(self) -> FinanceRepository: ...
 
     async def __aenter__(self) -> Self: ...
 

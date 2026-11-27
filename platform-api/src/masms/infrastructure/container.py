@@ -31,6 +31,10 @@ from masms.infrastructure.security.tokens import JwtTokenService, generate_priva
 from masms.use_cases.academics.structure import AcademicCalendar, ClassesAndSubjects, Enrolments
 from masms.use_cases.attendance.registers import StudentRegisters
 from masms.use_cases.attendance.staff import StaffAttendance
+from masms.use_cases.finance.billing import Billing
+from masms.use_cases.finance.catalog import FinanceCatalog
+from masms.use_cases.finance.payments import Payments
+from masms.use_cases.finance.statements import Statements
 from masms.use_cases.identity.create_platform_user import CreatePlatformUser
 from masms.use_cases.identity.get_current_user import GetCurrentUser
 from masms.use_cases.identity.manage_school_users import (
@@ -114,6 +118,10 @@ class UseCases:
     find_platform_user_id: FindPlatformUserId
     student_registers: StudentRegisters
     staff_attendance: StaffAttendance
+    finance_catalog: FinanceCatalog
+    billing: Billing
+    payments: Payments
+    statements: Statements
 
 
 @dataclass
@@ -353,6 +361,10 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
             secrets=secrets,
             limiter=limiter,
         ),
+        finance_catalog=FinanceCatalog(uow_factory=uow, clock=clock),
+        billing=Billing(uow_factory=uow, clock=clock, school_time=school_time),
+        payments=Payments(uow_factory=uow, clock=clock, school_time=school_time),
+        statements=Statements(uow_factory=uow),
     )
 
     email = _email_sender(settings)

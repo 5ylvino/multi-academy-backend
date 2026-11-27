@@ -129,4 +129,5 @@ modules = [
   "masms.domain.platform",
   "masms.domain.academics",
   "masms.domain.attendance",
+  "masms.domain.finance",
 ]

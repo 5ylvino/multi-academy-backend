@@ -107,9 +107,33 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET | `/api/v1/attendance/staff/kiosk-code` | `staff_attendance:view_all` (the gate screen) |
 | POST | `/api/v1/attendance/staff/check-in` | `staff_attendance:create` |
 | GET | `/api/v1/attendance/staff/register?date=`, `/staff/me` | `staff_attendance:view_all` / own history |
+| GET/PUT | `/api/v1/finance/settings` | `fees:view` / `fees:manage` (currency locks once invoices exist) |
+| GET/POST/PUT | `/api/v1/finance/fee-items`, `/{id}`, `/{id}/retire`, `/{id}/restore` | `fee_structures:read` / `:create` / `:update` / `:delete` |
+| GET/POST | `/api/v1/finance/scholarships`, `/{id}/revoke` | `scholarships:manage` |
+| POST | `/api/v1/finance/billing-runs` | `invoices:create` (safe to repeat: one live term invoice per student) |
+| GET/POST | `/api/v1/finance/invoices`, `/invoices/{id}` | `invoices:read` / `invoices:create`; students see their own |
+| POST | `/api/v1/finance/invoices/{id}/void` | `fees:manage` (reason required; paid money becomes credit) |
+| POST | `/api/v1/finance/payments` | `payments:process` + `fees:manage`, `Idempotency-Key` header required |
+| GET | `/api/v1/finance/payments`, `/payments/{id}` | `payments:view`; students see their own |
+| POST | `/api/v1/finance/payments/{id}/reverse` | `fees:manage` (bounced cheque, duplicate entry) |
+| POST | `/api/v1/finance/payments/{id}/refunds` | `refunds:process` (holds the credit) |
+| GET/POST | `/api/v1/finance/refunds`, `/{id}/approve`, `/{id}/reject` | `refunds:process`, and not the person who asked |
+| GET | `/api/v1/finance/students/{id}/statement` | `invoices:read`, or the student |
+| GET | `/api/v1/finance/ledger/trial-balance` | `fees:manage` |
 | GET | `/health/live`, `/health/ready`, `/metrics` | infrastructure |
 
 Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
+
+## School fees
+
+- Money is integer minor units (kobo, cents) with an ISO 4217 currency. No floats anywhere.
+- Every payment becomes credit first; credit settles open invoices, oldest due date first.
+  Leftover credit pays the next invoice automatically or can be refunded.
+- Invoices are never edited. Void with a reason and issue a new one.
+- Refunds need two people. The database also refuses an approver who is the requester.
+- Every movement posts a balanced double-entry journal entry. Journal tables are append-only for
+  the app role, and a deferred trigger rejects any entry that doesn't sum to zero.
+- Money changes for one student are serialised with a transaction-scoped advisory lock.
 
 ## Owner-console MFA
 
