@@ -29,6 +29,7 @@ from app.domain.inventory.repositories import InventoryRepository
 from app.domain.operations.repositories import (
     ClinicRepository,
     GateRepository,
+    HostelRepository,
     TransportRepository,
 )
 from app.domain.payroll.repositories import PayrollRepository
@@ -354,6 +355,9 @@ class UnitOfWork(Protocol):
 
     @property
     def transport(self) -> TransportRepository: ...
+
+    @property
+    def hostel(self) -> HostelRepository: ...
 
     @property
     def audit_log(self) -> AuditLogRepository: ...

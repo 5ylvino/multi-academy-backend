@@ -7,6 +7,7 @@ import pytest
 
 from app.domain.operations.clinic import ClinicVisit, ClinicVisitClosed, HealthRecord, Outcome
 from app.domain.operations.gate import Collector, Release, ReleaseStatus, Visit
+from app.domain.operations.hostel import Exeat, ExeatStatus, Hostel, HostelKind, Room
 from app.domain.operations.transport import Boarding, BoardingKind, Direction, Route, Stop
 from app.domain.shared.errors import InvalidStateTransition, ValidationFailed
 
@@ -303,3 +304,81 @@ def test_boarding_order(previous: BoardingKind | None, kind: BoardingKind, ok: b
     else:
         with pytest.raises(InvalidStateTransition):
             record()
+
+
+def _exeat(**over: object) -> Exeat:
+    args: dict[str, object] = {
+        "tenant_id": TENANT,
+        "student_id": STUDENT,
+        "reason": "Wedding",
+        "collector_name": "Ngozi  Obi",
+        "leave_at": NOW + timedelta(hours=2),
+        "return_by": NOW + timedelta(days=2),
+        "by": BY,
+        "now": NOW,
+    }
+    args.update(over)
+    return Exeat.request(**args)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "over",
+    [
+        {"leave_at": NOW - timedelta(hours=2)},
+        {"return_by": NOW + timedelta(hours=1)},
+        {"return_by": NOW + timedelta(days=40)},
+        {"collector_name": "X"},
+        {"reason": " "},
+    ],
+)
+def test_exeat_request_rules(over: dict[str, object]) -> None:
+    with pytest.raises(ValidationFailed):
+        _exeat(**over)
+
+
+def test_exeat_lifecycle() -> None:
+    exeat = _exeat()
+    assert exeat.collector_name == "Ngozi Obi"
+    with pytest.raises(InvalidStateTransition):
+        exeat.sign_out(now=NOW)
+    with pytest.raises(InvalidStateTransition):
+        exeat.approve(by=BY, note=None, now=NOW)  # the requester can't decide
+    with pytest.raises(ValidationFailed):
+        exeat.reject(by=uuid4(), note=" ", now=NOW)
+    exeat.approve(by=uuid4(), note=None, now=NOW)
+    with pytest.raises(InvalidStateTransition):
+        exeat.approve(by=uuid4(), note=None, now=NOW)
+    exeat.sign_out(now=NOW + timedelta(hours=2))
+    with pytest.raises(InvalidStateTransition):
+        exeat.cancel(now=NOW)
+    assert not exeat.overdue(NOW + timedelta(days=1))
+    assert exeat.overdue(NOW + timedelta(days=3))
+    exeat.sign_in(now=NOW + timedelta(days=3))
+    assert exeat.status is ExeatStatus.RETURNED
+    assert exeat.returned_late
+    with pytest.raises(InvalidStateTransition):
+        exeat.sign_in(now=NOW)
+
+
+def test_expired_exeat_cannot_start() -> None:
+    exeat = _exeat()
+    exeat.approve(by=uuid4(), note=None, now=NOW)
+    with pytest.raises(InvalidStateTransition):
+        exeat.sign_out(now=NOW + timedelta(days=3))
+
+
+def test_rooms_and_hostels_guard_occupants() -> None:
+    room = Room.add(tenant_id=TENANT, hostel_id=uuid4(), name="Room 1", capacity=4)
+    with pytest.raises(ValidationFailed):
+        room.change(name="Room 1", capacity=2, active=True, occupants=3)
+    with pytest.raises(InvalidStateTransition):
+        room.change(name="Room 1", capacity=4, active=False, occupants=1)
+    with pytest.raises(ValidationFailed):
+        Room.add(tenant_id=TENANT, hostel_id=uuid4(), name="Big", capacity=41)
+    hostel = Hostel.create(
+        tenant_id=TENANT, name="Amina", kind=HostelKind.GIRLS, warden_id=None, now=NOW
+    )
+    with pytest.raises(InvalidStateTransition):
+        hostel.change(name="Amina", warden_id=None, active=False, residents=1)
+    hostel.change(name="Amina House", warden_id=None, active=False, residents=0)
+    assert not hostel.active

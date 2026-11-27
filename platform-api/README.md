@@ -157,6 +157,10 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | PUT/DELETE | `/api/v1/transport/students/{id}` | `transport:manage`: put a student on a route and stop |
 | GET/POST | `/api/v1/transport/routes/{id}/manifest`, `/{id}/boardings` | the route's driver (`transport:board`) or the office; staff with `transport:read` see manifests |
 | GET | `/api/v1/transport/students/{id}`, `/{id}/boardings` | the student, their guardians, or `transport:read` staff |
+| GET/POST/PUT | `/api/v1/hostels`, `/{id}`, `/{id}/rooms`, `/rooms/{id}`, `/{id}/residents` | `hostel:manage` (boarding staff) |
+| GET/PUT/DELETE | `/api/v1/hostels/boarders/{id}` | GET: the boarder, their guardians or `hostel:manage`; PUT/DELETE: `hostel:manage` |
+| POST/GET | `/api/v1/hostels/boarders/{id}/exeats`, `/hostels/exeats` | a guardian or `hostel:manage` asks; guardians list their child's; staff see all, `?overdue=true` |
+| POST | `/api/v1/hostels/exeats/{id}/approve`, `/reject`, `/cancel`, `/sign-out`, `/sign-in` | `hostel:manage` (not the person who asked); the asker may cancel |
 | GET/POST | `/api/v1/gate/students/{id}/pickup`, `/gate/releases`; `/gate/visits`, `/{id}/sign-out` | `gate:manage` (guard, office); `gate:read` for leaders; guardians see their child's releases |
 | GET | `/api/v1/subscription`, `/subscription/invoices` | `organization:view`: the school's plan and platform invoices |
 | POST | `/api/v1/subscription/invoices/{id}/pay`, `/confirm` | `organization:update` / `organization:view` |
@@ -314,6 +318,21 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
 - Guardians get an inbox notice for every event ("Ada is on the bus to school", "Ada wasn't at
   the bus stop") and can see their child's route, stop, today's trips and 90 days of history.
 - Boarding records are append-only for the app role.
+
+## Boarding and exeats
+
+- Boarding staff (`hostel:manage`: director, school admin, head teacher, principal, vice
+  principal; grant it to a house master or mistress) set up hostels (boys, girls or mixed, with a
+  warden) and rooms with a number of beds, then give each boarder a room and bed. Rooms and beds
+  can't be overfilled (checked under a lock, plus a unique bed index). The residents list is the
+  roll call and shows who is away.
+- A guardian asks for an exeat: why, who collects the child, when they leave and when they're
+  back (at most 30 days). Boarding staff can raise one too. Someone other than the asker approves
+  or turns it down (with a reason); the database also refuses a self-decision. Only one exeat is
+  open per boarder. The hostel signs the boarder out (not after the return time) and back in.
+- The warden is told when a family asks. Guardians are told when it is approved or turned down,
+  when the child leaves and when they're back (and whether late). `?overdue=true` lists boarders
+  still out after their return time. Exeats are never deleted.
 
 ## Online payments (Paystack)
 

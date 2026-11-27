@@ -22,6 +22,7 @@ from app.infrastructure.persistence.repositories.communication import (
     SqlCommunicationRepository,
 )
 from app.infrastructure.persistence.repositories.finance import SqlFinanceRepository
+from app.infrastructure.persistence.repositories.hostel import SqlHostelRepository
 from app.infrastructure.persistence.repositories.identity import (
     SqlGuardianRepository,
     SqlInviteRepository,
@@ -109,6 +110,7 @@ class SqlAlchemyUnitOfWork:
         self.clinic = SqlClinicRepository(s, self._scope)
         self.gate = SqlGateRepository(s, self._scope)
         self.transport = SqlTransportRepository(s, self._scope)
+        self.hostel = SqlHostelRepository(s, self._scope)
         return self
 
     async def __aexit__(

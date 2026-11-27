@@ -13,6 +13,7 @@ from uuid import UUID
 
 from app.domain.operations.clinic import Outcome
 from app.domain.operations.gate import Collector, Release, Visit
+from app.domain.operations.hostel import Allocation, Exeat, ExeatStatus, Hostel, Room
 from app.domain.operations.transport import (
     Assignment,
     Boarding,
@@ -159,3 +160,65 @@ class TransportRepository(Protocol):
     async def boardings(
         self, *, student_id: UUID, since: datetime, cursor: str | None, limit: int
     ) -> Page[Boarding]: ...
+
+
+class HostelRepository(Protocol):
+    async def add_hostel(self, hostel: Hostel) -> None: ...
+
+    async def get_hostel(self, hostel_id: UUID) -> Hostel | None: ...
+
+    async def save_hostel(self, hostel: Hostel) -> None: ...
+
+    async def hostels(self, *, include_inactive: bool) -> list[Hostel]: ...
+
+    async def add_room(self, room: Room) -> None: ...
+
+    async def get_room(self, room_id: UUID, *, for_update: bool = False) -> Room | None: ...
+
+    async def save_room(self, room: Room) -> None: ...
+
+    async def rooms(self, hostel_id: UUID) -> list[Room]:
+        """Active rooms, by name."""
+        ...
+
+    async def occupancy(self) -> dict[UUID, int]:
+        """Boarders in each room."""
+        ...
+
+    async def allocation(self, student_id: UUID) -> Allocation | None: ...
+
+    async def bed_holder(self, room_id: UUID, bed: str) -> UUID | None: ...
+
+    async def save_allocation(self, allocation: Allocation) -> None:
+        """Insert or replace the boarder's allocation."""
+        ...
+
+    async def remove_allocation(self, student_id: UUID) -> None: ...
+
+    async def allocations(self, hostel_id: UUID) -> list[Allocation]: ...
+
+    async def add_exeat(self, exeat: Exeat) -> None: ...
+
+    async def get_exeat(self, exeat_id: UUID, *, for_update: bool = False) -> Exeat | None: ...
+
+    async def save_exeat(self, exeat: Exeat) -> None: ...
+
+    async def students_out(self) -> set[UUID]:
+        """Boarders away on an exeat right now."""
+        ...
+
+    async def open_exeat(self, student_id: UUID) -> Exeat | None:
+        """The boarder's pending, approved or current exeat, if any."""
+        ...
+
+    async def exeats(
+        self,
+        *,
+        student_id: UUID | None,
+        statuses: frozenset[ExeatStatus] | None,
+        overdue_at: datetime | None,
+        cursor: str | None,
+        limit: int,
+    ) -> Page[Exeat]:
+        """Newest first. ``overdue_at``: only boarders still out after their return time."""
+        ...

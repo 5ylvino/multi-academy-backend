@@ -72,6 +72,7 @@ from app.use_cases.identity.sign_out import SignOut
 from app.use_cases.inventory.stock import Inventory
 from app.use_cases.operations.clinic import Clinic
 from app.use_cases.operations.gate import Gate
+from app.use_cases.operations.hostel import Hostels
 from app.use_cases.operations.notifications import SendUrgentClinicEmail
 from app.use_cases.operations.transport import Transport
 from app.use_cases.payroll.notifications import SendPayslipReadyEmails
@@ -164,6 +165,7 @@ class UseCases:
     clinic: Clinic
     gate: Gate
     transport: Transport
+    hostels: Hostels
 
 
 @dataclass
@@ -487,6 +489,7 @@ def build_container(
         clinic=Clinic(uow_factory=uow, clock=clock, box=secret_box),
         gate=Gate(uow_factory=uow, clock=clock, school_time=school_time),
         transport=Transport(uow_factory=uow, clock=clock, school_time=school_time),
+        hostels=Hostels(uow_factory=uow, clock=clock),
         spending=Spending(
             uow_factory=uow, clock=clock, school_time=school_time, store=object_store
         ),
