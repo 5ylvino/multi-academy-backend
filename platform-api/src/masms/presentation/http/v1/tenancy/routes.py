@@ -44,6 +44,7 @@ async def register_school(
             slug=body.slug,
             school_levels=list(body.school_levels),
             country_code=body.country_code,
+            timezone=body.timezone,
             admin_full_name=body.admin_full_name,
             admin_email=body.admin_email,
             admin_password=body.admin_password,

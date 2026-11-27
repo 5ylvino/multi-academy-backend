@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 from enum import StrEnum
 from types import MappingProxyType
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from masms.domain.shared.entity import AggregateRoot
 from masms.domain.shared.errors import InvalidStateTransition, TenantUnavailable, ValidationFailed
@@ -48,6 +49,32 @@ _TRANSITIONS: MappingProxyType[TenantStatus, frozenset[TenantStatus]] = MappingP
 SERVING_STATUSES = frozenset({TenantStatus.TRIAL, TenantStatus.ACTIVE})
 
 
+_COUNTRY_TIMEZONES = {
+    "NG": "Africa/Lagos",
+    "GH": "Africa/Accra",
+    "KE": "Africa/Nairobi",
+    "ZA": "Africa/Johannesburg",
+    "RW": "Africa/Kigali",
+    "UG": "Africa/Kampala",
+    "GB": "Europe/London",
+    "US": "America/New_York",
+    "CA": "America/Toronto",
+}
+
+
+def default_timezone(country_code: str) -> str:
+    return _COUNTRY_TIMEZONES.get(country_code.upper(), "UTC")
+
+
+def validate_timezone(name: str) -> None:
+    try:
+        ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError) as exc:
+        raise ValidationFailed(
+            "Pick a valid time zone, e.g. Africa/Lagos.", details={"field": "timezone"}
+        ) from exc
+
+
 @dataclass(kw_only=True, eq=False)
 class Tenant(AggregateRoot):
     slug: Slug
@@ -58,6 +85,8 @@ class Tenant(AggregateRoot):
     country_code: str
     contact_email: str
     created_at: datetime
+    #: IANA zone. "Today" for registers, deadlines and reports is the school's local date.
+    timezone: str = "Africa/Lagos"
     trial_ends_at: datetime | None = None
     status_reason: str | None = None
     #: Bumped on every runtime-policy change, so caches and tokens can detect staleness.
@@ -74,6 +103,7 @@ class Tenant(AggregateRoot):
         contact_email: str,
         plan_code: str,
         now: datetime,
+        timezone: str | None = None,
     ) -> Tenant:
         clean_name = " ".join(name.split())
         if not 2 <= len(clean_name) <= 160:
@@ -88,8 +118,11 @@ class Tenant(AggregateRoot):
             raise ValidationFailed(
                 "Country must be an ISO 3166 alpha-2 code.", details={"field": "country_code"}
             )
+        zone = timezone or default_timezone(country_code)
+        validate_timezone(zone)
         tenant = cls(
             id=new_id(),
+            timezone=zone,
             slug=slug,
             name=clean_name,
             status=TenantStatus.PENDING_VERIFICATION,
@@ -103,6 +136,9 @@ class Tenant(AggregateRoot):
             TenantRegistered(tenant_id=tenant.id, slug=slug.value, school_name=clean_name)
         )
         return tenant
+
+    def local_today(self, now: datetime) -> date:
+        return now.astimezone(ZoneInfo(self.timezone)).date()
 
     @property
     def is_serving(self) -> bool:

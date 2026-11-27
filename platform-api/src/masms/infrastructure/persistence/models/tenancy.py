@@ -23,6 +23,7 @@ class TenantRow(Base):
     plan_code: Mapped[str] = mapped_column(String(40))
     school_levels: Mapped[list[str]] = mapped_column(ARRAY(String(16)))
     country_code: Mapped[str] = mapped_column(String(2))
+    timezone: Mapped[str] = mapped_column(String(64), server_default=text("'Africa/Lagos'"))
     contact_email: Mapped[str] = mapped_column(String(254))
     trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     config_version: Mapped[int] = mapped_column(Integer, server_default=text("1"))

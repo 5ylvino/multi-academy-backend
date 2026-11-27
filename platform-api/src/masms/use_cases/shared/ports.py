@@ -10,6 +10,7 @@ from typing import Any, Protocol, Self
 from uuid import UUID
 
 from masms.domain.academics.repositories import AcademicsRepository
+from masms.domain.attendance.repositories import AttendanceRepository
 from masms.domain.identity.repositories import (
     InviteRepository,
     MfaRepository,
@@ -57,6 +58,12 @@ class SecretGenerator(Protocol):
     def random_bytes(self, length: int) -> bytes: ...
 
     def code_from_alphabet(self, alphabet: str, length: int) -> str: ...
+
+
+class SchoolTime(Protocol):
+    """The current time in a school's own time zone."""
+
+    async def now_local(self, tenant_id: UUID) -> datetime: ...
 
 
 class SecretBox(Protocol):
@@ -150,6 +157,9 @@ class UnitOfWork(Protocol):
 
     @property
     def mfa(self) -> MfaRepository: ...
+
+    @property
+    def attendance(self) -> AttendanceRepository: ...
 
     @property
     def academics(self) -> AcademicsRepository: ...

@@ -15,6 +15,7 @@ from masms.domain.shared.events import DomainEvent
 from masms.domain.shared.ids import new_id
 from masms.infrastructure.persistence.models.system import AuditEventRow, OutboxEventRow
 from masms.infrastructure.persistence.repositories.academics import SqlAcademicsRepository
+from masms.infrastructure.persistence.repositories.attendance import SqlAttendanceRepository
 from masms.infrastructure.persistence.repositories.identity import (
     SqlInviteRepository,
     SqlMfaRepository,
@@ -73,6 +74,7 @@ class SqlAlchemyUnitOfWork:
         self.plans = SqlPlanRepository(s)
         self.invites = SqlInviteRepository(s)
         self.mfa = SqlMfaRepository(s)
+        self.attendance = SqlAttendanceRepository(s, self._scope)
         self.academics = SqlAcademicsRepository(s, self._scope)
         return self
 

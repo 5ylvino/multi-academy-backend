@@ -152,6 +152,7 @@ class TenantRuntime:
     serving: bool
     config_version: int
     plan_code: str
+    timezone: str = "Africa/Lagos"
 
 
 class GetTenantRuntime:
@@ -171,6 +172,7 @@ class GetTenantRuntime:
                 serving=bool(cached["serving"]),
                 config_version=int(cached["config_version"]),
                 plan_code=str(cached["plan_code"]),
+                timezone=str(cached.get("timezone", "Africa/Lagos")),
             )
         async with self._uow_factory(Scope.registry(), read_only=True) as uow:
             tenant = await uow.tenants.get(tenant_id)
@@ -182,6 +184,7 @@ class GetTenantRuntime:
             serving=tenant.is_serving,
             config_version=tenant.config_version,
             plan_code=tenant.plan_code,
+            timezone=tenant.timezone,
         )
         await self._cache.set_json(
             key,
@@ -190,6 +193,7 @@ class GetTenantRuntime:
                 "serving": runtime.serving,
                 "config_version": runtime.config_version,
                 "plan_code": runtime.plan_code,
+                "timezone": runtime.timezone,
             },
             self.TTL_SECONDS,
         )

@@ -41,6 +41,7 @@ class RegisterSchoolCommand:
     admin_email: str
     admin_password: str
     client_ip: str | None
+    timezone: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,6 +100,7 @@ class RegisterSchool:
                 slug=slug,
                 school_levels=levels,
                 country_code=cmd.country_code,
+                timezone=cmd.timezone,
                 contact_email=email.value,
                 plan_code=self._default_plan,
                 now=now,

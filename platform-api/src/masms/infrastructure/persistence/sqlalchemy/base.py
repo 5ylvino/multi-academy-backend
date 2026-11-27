@@ -30,6 +30,9 @@ TENANT_SCOPED_TABLES: tuple[str, ...] = (
     "academic_subjects",
     "academic_class_subjects",
     "academic_enrolments",
+    "attendance_settings",
+    "attendance_student_marks",
+    "attendance_staff_check_ins",
 )
 
 #: Tables that carry ``tenant_id`` but are registry or platform data, read before a tenant is known.

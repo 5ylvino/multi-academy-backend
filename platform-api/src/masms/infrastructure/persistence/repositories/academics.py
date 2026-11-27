@@ -316,6 +316,30 @@ class SqlAcademicsRepository:
             )
         )
 
+    async def teaches_class(self, teacher_id: UUID, class_id: UUID) -> bool:
+        homeroom = exists().where(
+            SchoolClassRow.tenant_id == self._tid,
+            SchoolClassRow.id == class_id,
+            SchoolClassRow.class_teacher_id == teacher_id,
+        )
+        subject = exists().where(
+            ClassSubjectRow.tenant_id == self._tid,
+            ClassSubjectRow.class_id == class_id,
+            ClassSubjectRow.teacher_id == teacher_id,
+        )
+        return bool(await self._s.scalar(select(homeroom | subject)))
+
+    async def class_of_student(self, student_id: UUID, session_id: UUID) -> UUID | None:
+        result: UUID | None = await self._s.scalar(
+            select(EnrolmentRow.class_id).where(
+                EnrolmentRow.tenant_id == self._tid,
+                EnrolmentRow.student_id == student_id,
+                EnrolmentRow.session_id == session_id,
+                EnrolmentRow.status == EnrolmentStatus.ACTIVE.value,
+            )
+        )
+        return result
+
     # enrolments
     async def add_enrolment(self, enrolment: Enrolment) -> None:
         self._s.add(

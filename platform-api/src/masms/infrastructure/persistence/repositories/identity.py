@@ -168,6 +168,23 @@ class SqlUserRepository:
             raise Conflict(_STALE)
         user.version += 1
 
+    async def school_users_with_roles(
+        self, tenant_id: UUID, roles: frozenset[str]
+    ) -> list[UserAccount]:
+        if not roles:
+            return []
+        rows = await self._s.scalars(
+            select(SchoolUserRow)
+            .where(
+                SchoolUserRow.tenant_id == tenant_id,
+                SchoolUserRow.roles.overlap(sorted(roles)),
+                SchoolUserRow.status == UserStatus.ACTIVE.value,
+            )
+            .order_by(SchoolUserRow.full_name, SchoolUserRow.id)
+            .limit(5000)
+        )
+        return [_school_to_domain(r) for r in rows]
+
     async def list_school_users(
         self,
         tenant_id: UUID,

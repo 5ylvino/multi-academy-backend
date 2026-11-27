@@ -18,6 +18,7 @@ class RegisterSchoolRequest(ApiModel):
     slug: str | None = Field(default=None, min_length=3, max_length=63)
     school_levels: list[SchoolLevelName] = Field(min_length=1, max_length=3)
     country_code: str = Field(default="NG", min_length=2, max_length=2)
+    timezone: str | None = Field(default=None, max_length=64, examples=["Africa/Lagos"])
     admin_full_name: str = Field(min_length=2, max_length=160)
     admin_email: EmailStr
     admin_password: str = Field(min_length=10, max_length=128)
@@ -46,6 +47,7 @@ class BootstrapResponse(ApiModel):
     status: str
     plan_code: str
     school_levels: list[str]
+    timezone: str
     config_version: int
     features: dict[str, bool]
     user_id: UUID

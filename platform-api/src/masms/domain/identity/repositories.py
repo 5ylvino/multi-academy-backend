@@ -28,6 +28,12 @@ class UserRepository(Protocol):
 
     async def save(self, user: UserAccount) -> None: ...
 
+    async def school_users_with_roles(
+        self, tenant_id: UUID, roles: frozenset[str]
+    ) -> list[UserAccount]:
+        """Active users holding any of ``roles``, by name. For registers, not for listing."""
+        ...
+
     async def list_school_users(
         self,
         tenant_id: UUID,

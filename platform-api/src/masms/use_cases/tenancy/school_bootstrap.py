@@ -21,6 +21,7 @@ class SchoolBootstrap:
     status: str
     plan_code: str
     school_levels: list[str]
+    timezone: str
     config_version: int
     features: dict[str, bool]
     user_id: UUID
@@ -75,6 +76,7 @@ class GetSchoolBootstrap:
             status=runtime.status,
             plan_code=runtime.plan_code,
             school_levels=[str(level) for level in profile["school_levels"]],
+            timezone=runtime.timezone,
             config_version=runtime.config_version,
             features=features,
             user_id=principal.user_id,

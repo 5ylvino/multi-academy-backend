@@ -100,6 +100,13 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET/POST | `/api/v1/academics/subjects` | `subjects:read` / `subjects:create` |
 | POST | `/api/v1/academics/enrolments` | `students:update` |
 | GET | `/api/v1/academics/classes/{id}/roster` | `students:read` |
+| GET/POST | `/api/v1/attendance/classes/{id}/register?date=` | `student_attendance:read` / `:create`, and teaching the class |
+| POST | `/api/v1/attendance/classes/{id}/corrections` | `student_attendance:update` (reason required, audited) |
+| GET | `/api/v1/attendance/students/{id}/summary?from=&to=` | the student, their teachers, or `student_attendance:view_all` |
+| GET/PUT | `/api/v1/attendance/staff/settings` | `organization_settings:configure` |
+| GET | `/api/v1/attendance/staff/kiosk-code` | `staff_attendance:view_all` (the gate screen) |
+| POST | `/api/v1/attendance/staff/check-in` | `staff_attendance:create` |
+| GET | `/api/v1/attendance/staff/register?date=`, `/staff/me` | `staff_attendance:view_all` / own history |
 | GET | `/health/live`, `/health/ready`, `/metrics` | infrastructure |
 
 Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.

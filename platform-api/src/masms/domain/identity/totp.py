@@ -19,8 +19,8 @@ DIGITS = 6
 DRIFT_STEPS = 1
 
 
-def time_step(at: datetime) -> int:
-    return int(at.timestamp()) // STEP_SECONDS
+def time_step(at: datetime, period: int = STEP_SECONDS) -> int:
+    return int(at.timestamp()) // period
 
 
 def code_at(secret: bytes, step: int) -> str:
@@ -30,11 +30,18 @@ def code_at(secret: bytes, step: int) -> str:
     return str(value % 10**DIGITS).zfill(DIGITS)
 
 
-def matching_step(secret: bytes, code: str, at: datetime, *, after_step: int | None) -> int | None:
+def matching_step(
+    secret: bytes,
+    code: str,
+    at: datetime,
+    *,
+    after_step: int | None,
+    period: int = STEP_SECONDS,
+) -> int | None:
     """The step ``code`` belongs to, if valid now and newer than ``after_step`` (no replays)."""
     if len(code) != DIGITS or not code.isdigit():
         return None
-    now = time_step(at)
+    now = time_step(at, period)
     for step in range(now - DRIFT_STEPS, now + DRIFT_STEPS + 1):
         if after_step is not None and step <= after_step:
             continue

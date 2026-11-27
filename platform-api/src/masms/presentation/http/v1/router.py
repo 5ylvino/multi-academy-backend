@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from masms.presentation.http.v1.academics import routes as academics
+from masms.presentation.http.v1.attendance import routes as attendance
 from masms.presentation.http.v1.identity import mfa_routes, users
 from masms.presentation.http.v1.identity import routes as identity
 from masms.presentation.http.v1.platform import routes as platform
@@ -19,3 +20,4 @@ api_router.include_router(tenancy.platform_router)
 api_router.include_router(platform.router)
 api_router.include_router(users.router)
 api_router.include_router(academics.router)
+api_router.include_router(attendance.router)
