@@ -34,6 +34,7 @@ from app.infrastructure.persistence.repositories.platform import (
     SqlPlanRepository,
 )
 from app.infrastructure.persistence.repositories.scope_state import ScopeState
+from app.infrastructure.persistence.repositories.subscriptions import SqlSubscriptionRepository
 from app.infrastructure.persistence.repositories.tenancy import (
     SqlEmailVerificationRepository,
     SqlTenantRepository,
@@ -87,6 +88,7 @@ class SqlAlchemyUnitOfWork:
         self.finance = SqlFinanceRepository(s, self._scope)
         self.audit_log = SqlAuditLogRepository(s)
         self.online_payments = SqlOnlinePaymentRepository(s, self._scope)
+        self.subscriptions = SqlSubscriptionRepository(s, self._scope)
         return self
 
     async def __aexit__(

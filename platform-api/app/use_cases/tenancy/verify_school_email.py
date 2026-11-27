@@ -22,6 +22,7 @@ from app.use_cases.shared.ports import (
     SecretHasher,
     UnitOfWorkFactory,
 )
+from app.use_cases.subscriptions.billing import new_subscription
 from app.use_cases.tenancy.register_school import VERIFICATION_TTL
 
 _NOT_PENDING = "This school is already verified. Sign in instead."
@@ -86,6 +87,8 @@ class VerifySchoolEmail:
             tenant.start_trial(now, self._trial_length)
             await uow.tenants.save(tenant)
             uow.track(tenant)
+            subscription = new_subscription(tenant, now)
+            await uow.subscriptions.save(subscription)
             issued, _ = await self._issuer.issue(
                 uow, user, client=cmd.client, tenant_config_version=tenant.config_version
             )
@@ -98,6 +101,16 @@ class VerifySchoolEmail:
                     actor_id=user.id,
                     actor_realm=Realm.SCHOOL,
                     trial_ends_at=tenant.trial_ends_at,
+                )
+            )
+            uow.audit(
+                audit.system(
+                    "subscription.started",
+                    target_type="tenant",
+                    target_id=tenant.id,
+                    tenant_id=tenant.id,
+                    plan_code=tenant.plan_code,
+                    first_bill_at=subscription.current_period_end,
                 )
             )
             uow.audit(sign_in_audit.signed_in(user, method="email_code"))

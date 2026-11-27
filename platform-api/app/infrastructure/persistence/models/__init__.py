@@ -6,8 +6,18 @@ from app.infrastructure.persistence.models import (
     finance,
     identity,
     platform,
+    subscriptions,
     system,
     tenancy,
 )
 
-__all__ = ["academics", "attendance", "finance", "identity", "platform", "system", "tenancy"]
+__all__ = [
+    "academics",
+    "attendance",
+    "finance",
+    "identity",
+    "platform",
+    "subscriptions",
+    "system",
+    "tenancy",
+]

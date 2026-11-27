@@ -142,7 +142,13 @@ def mailbox(container: Container) -> Mailbox:
         container.session_factory,
         {
             name: [box.handler(name)]
-            for name in ("tenancy.verification_code_issued", "identity.user_invited")
+            for name in (
+                "tenancy.verification_code_issued",
+                "identity.user_invited",
+                "subscriptions.invoice_issued",
+                "subscriptions.invoice_overdue",
+                "subscriptions.invoice_paid",
+            )
         },
     )
     return box

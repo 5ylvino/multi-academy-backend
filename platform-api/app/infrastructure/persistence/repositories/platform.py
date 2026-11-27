@@ -96,6 +96,10 @@ def _plan(row: PlanRow) -> Plan:
         features=frozenset(row.features or ()),
         student_limit=row.student_limit,
         active=row.active,
+        currency=row.currency,
+        base_price_minor=row.base_price_minor,
+        price_per_student_minor=row.price_per_student_minor,
+        billing_interval_months=row.billing_interval_months,
     )
 
 
@@ -117,6 +121,10 @@ class SqlPlanRepository:
             "features": sorted(plan.features),
             "student_limit": plan.student_limit,
             "active": plan.active,
+            "currency": plan.currency,
+            "base_price_minor": plan.base_price_minor,
+            "price_per_student_minor": plan.price_per_student_minor,
+            "billing_interval_months": plan.billing_interval_months,
         }
         stmt = insert(PlanRow).values(**values)
         await self._s.execute(

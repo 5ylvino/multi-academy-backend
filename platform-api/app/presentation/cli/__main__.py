@@ -9,6 +9,10 @@ Commands:
   reconcile-payments
       Check every pending online payment with its provider now (the worker also does this
       every five minutes).
+  run-billing
+      Run platform billing now: issue invoices, send reminders, suspend schools whose invoice
+      is past its grace period, and confirm online payments (the worker does this every 15
+      minutes).
 """
 
 from __future__ import annotations
@@ -78,6 +82,22 @@ async def _reconcile_payments() -> int:
     return 1 if report.errors else 0
 
 
+async def _run_billing() -> int:
+    settings = get_settings()
+    configure_logging(settings.log_level, json=False)
+    container = build_container(settings, role="cli")
+    try:
+        report = await container.use_cases.platform_billing.run_cycle()
+    finally:
+        await container.aclose()
+    print(
+        f"{report.invoices_issued} invoices issued, {report.periods_renewed} free periods "
+        f"renewed, {report.reminders_sent} reminders, {report.schools_suspended} suspended, "
+        f"{report.payments_confirmed} payments confirmed, {report.errors} errors"
+    )
+    return 1 if report.errors else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="masms")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -88,6 +108,7 @@ def main(argv: list[str] | None = None) -> int:
     reset = sub.add_parser("reset-platform-mfa", help="Reset a console user's two-step login")
     reset.add_argument("--email", required=True)
     sub.add_parser("reconcile-payments", help="Check pending online payments with the provider")
+    sub.add_parser("run-billing", help="Run platform billing now")
     args = parser.parse_args(argv)
     if args.command == "create-platform-user":
         return asyncio.run(_create_platform_user(args))
@@ -95,6 +116,8 @@ def main(argv: list[str] | None = None) -> int:
         return asyncio.run(_reset_platform_mfa(args))
     if args.command == "reconcile-payments":
         return asyncio.run(_reconcile_payments())
+    if args.command == "run-billing":
+        return asyncio.run(_run_billing())
     return 2
 
 

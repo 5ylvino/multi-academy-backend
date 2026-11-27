@@ -132,6 +132,14 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | POST/GET | `/api/v1/finance/checkouts`, `/{id}` | parents pay for linked children; staff with `payments:view` see all |
 | POST | `/api/v1/finance/checkouts/{id}/confirm` | the payer, on return from the payment page |
 | POST | `/api/v1/webhooks/payments/{provider}/{school_id}` | the provider (signature checked) |
+| GET | `/api/v1/subscription`, `/subscription/invoices` | `organization:view`: the school's plan and platform invoices |
+| POST | `/api/v1/subscription/invoices/{id}/pay`, `/confirm` | `organization:update` / `organization:view` |
+| GET/POST | `/api/v1/platform-invoices/{id}`, `/pay`, `/confirm` `?token=` | anyone with the emailed pay link (works while suspended) |
+| GET | `/api/v1/platform/billing/invoices`, `/schools/{id}` | `billing:read` / `subscriptions:read` |
+| POST | `/api/v1/platform/billing/invoices/{id}/payments`, `/void` | `billing:write`: record a bank transfer, waive, cancel |
+| PUT | `/api/v1/platform/billing/schools/{id}/plan` | `subscriptions:write` |
+| POST | `/api/v1/platform/billing/run` | `billing:write`: run the billing cycle now |
+| POST | `/api/v1/webhooks/platform-billing/paystack` | the platform's Paystack account (signature checked) |
 | GET | `/api/v1/audit-events`, `/export` (CSV), `/actions` | `audit_logs:view` (director, IT admin) |
 | GET | `/api/v1/platform/audit-events`, `/export` (CSV), `/actions` | `audit:read` |
 | GET | `/health/live`, `/health/ready`, `/metrics` | infrastructure |
@@ -185,6 +193,34 @@ unpaid ones close after 24 hours.
 Switching or adding a provider: write one adapter for the `PaymentGateway` port
 (`app/use_cases/shared/ports.py`) next to `app/infrastructure/providers/payments/paystack.py`
 and register it in `infrastructure/container.py`. Use cases, tables and routes stay the same.
+
+## Platform billing (schools pay for their plan)
+
+A plan's price is `base_price_minor + price_per_student_minor x active students` per period of
+`billing_interval_months` (1, 3, 4, 6 or 12; 4 is a term). A plan with both prices at zero is free.
+
+- A new school gets a subscription when it verifies its email. Its first period starts when the
+  30-day trial ends. Schools that predate billing get one from the first billing cycle, with a
+  week's notice before their first period.
+- A week before each period the platform issues an invoice (number `MAS-<year>-<seq>`), due the
+  day the period starts, and emails it to the school's contact address. Free plans roll forward
+  without invoices. A per-student plan with no active students is settled at zero automatically.
+- Unpaid after the due date: the subscription is `past_due` and a reminder goes out every 3 days,
+  but the school keeps working for a 14-day grace period. Then the school is suspended with the
+  reason `Unpaid platform invoice <number>`.
+- Paying (online, or a bank transfer the console records) starts the period, turns a trial into a
+  paid account, and lifts at once a suspension that billing made. Suspensions for any other reason
+  stay. A waiver needs a note; a void needs a reason and lets the next cycle issue a fresh invoice.
+- A suspended school can't sign in, so every invoice email has a private pay link that works
+  without signing in. Its token is an HMAC of the invoice id: nothing secret is stored.
+- Online payment uses the platform's own Paystack account (`MASMS_PLATFORM_PAYSTACK_*`). Leave it
+  unset to take bank transfers only (`MASMS_PLATFORM_BANK_TRANSFER_DETAILS`, shown on invoices).
+  The same safeguards as school fees apply: credited only after Paystack's API confirms it, via
+  the webhook, the payer's return or reconciliation; every checkout reference is kept, so a
+  payment made on an older page still counts; a short payment is flagged, never credited.
+- The worker runs the cycle every 15 minutes; `python -m app.presentation.cli run-billing` or
+  `POST /platform/billing/run` run it now. Every step is safe to repeat and to run on several
+  workers at once (row locks plus a unique index on each school's live invoice per period).
 
 ## Audit trail
 

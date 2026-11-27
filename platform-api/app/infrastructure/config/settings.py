@@ -78,6 +78,15 @@ class Settings(BaseSettings):
     #: Accept providers' test keys (sk_test_...). Never in production.
     payments_allow_test_keys: bool = True
 
+    # Platform billing: how schools pay the platform for their plan. Online payment uses the
+    # platform's own Paystack account; leave the keys unset to take bank transfers only.
+    platform_paystack_public_key: str | None = None
+    platform_paystack_secret_key: SecretStr | None = None
+    #: Shown on invoices and emails, e.g. "GTBank 0123456789, MA-SMS Ltd".
+    platform_bank_transfer_details: str | None = None
+    #: Page (school app) that opens an invoice from its emailed pay link.
+    platform_pay_page_url: str | None = None
+
     email_provider: str = "log"  # "log" | "smtp"
     email_from_address: str = "no-reply@mas.ng"
     email_from_name: str = "MA-SMS"
@@ -127,6 +136,10 @@ class Settings(BaseSettings):
         )
 
     @property
+    def effective_platform_pay_page_url(self) -> str:
+        return self.platform_pay_page_url or f"{self.school_app_url.rstrip('/')}/billing/pay"
+
+    @property
     def is_production(self) -> bool:
         return self.environment in {Environment.PRODUCTION, Environment.STAGING}
 
@@ -160,6 +173,17 @@ class Settings(BaseSettings):
             problems.append("MASMS_OBJECT_STORE_ENDPOINT and its access keys are required")
         if self.environment is Environment.PRODUCTION and self.payments_allow_test_keys:
             problems.append("MASMS_PAYMENTS_ALLOW_TEST_KEYS must be false in production")
+        platform_key = self.platform_paystack_secret_key
+        if (
+            self.environment is Environment.PRODUCTION
+            and platform_key is not None
+            and platform_key.get_secret_value().startswith("sk_test_")
+        ):
+            problems.append("MASMS_PLATFORM_PAYSTACK_SECRET_KEY must be a live key in production")
+        if (platform_key is None) != (self.platform_paystack_public_key is None):
+            problems.append("Set both platform Paystack keys, or neither")
+        if platform_key is None and not self.platform_bank_transfer_details:
+            problems.append("Set platform Paystack keys or MASMS_PLATFORM_BANK_TRANSFER_DETAILS")
         if not self.public_api_url.startswith("https://"):
             problems.append("MASMS_PUBLIC_API_URL must be an https URL")
         if problems:

@@ -76,6 +76,10 @@ async def upsert_plan(
             features=body.features,
             student_limit=body.student_limit,
             active=body.active,
+            currency=body.currency,
+            base_price_minor=body.base_price_minor,
+            price_per_student_minor=body.price_per_student_minor,
+            billing_interval_months=body.billing_interval_months,
         ),
     )
     return PlanResponse.model_validate(view)

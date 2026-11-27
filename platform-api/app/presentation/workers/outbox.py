@@ -1,6 +1,7 @@
 """Outbox worker: ``python -m app.presentation.workers.outbox``.
 
-Also reconciles pending online payments every five minutes.
+Also reconciles pending online payments every five minutes, and runs platform billing every
+fifteen minutes (every step of it is safe to run on several replicas at once).
 
 Run as many replicas as needed; each claims different rows. Stops cleanly on SIGTERM.
 """
@@ -17,12 +18,15 @@ import structlog
 from app.infrastructure.config.settings import get_settings
 from app.infrastructure.container import build_container
 from app.infrastructure.observability.logging import configure_logging
+from app.use_cases.subscriptions.billing import report_fields
 
 _log = structlog.get_logger(__name__)
 IDLE_SLEEP_SECONDS = 0.5
 PURGE_EVERY_SECONDS = 3600
 #: Check pending online payments with their provider (catches missed webhooks).
 RECONCILE_EVERY_SECONDS = 300
+#: Platform billing: issue invoices, send reminders, suspend for non-payment, confirm payments.
+BILLING_EVERY_SECONDS = 900
 
 
 async def run() -> None:
@@ -38,6 +42,7 @@ async def run() -> None:
     _log.info("outbox_worker.started")
     last_purge = loop.time()
     last_reconcile = loop.time()
+    last_billing = loop.time() - BILLING_EVERY_SECONDS  # first run soon after start
     try:
         while not stop.is_set():
             try:
@@ -57,6 +62,15 @@ async def run() -> None:
                         _log.info("payments.reconciled", **asdict(report))
                 except Exception:
                     _log.exception("payments.reconcile_batch_failed")
+            if loop.time() - last_billing > BILLING_EVERY_SECONDS:
+                last_billing = loop.time()
+                try:
+                    cycle = await container.use_cases.platform_billing.run_cycle()
+                    fields = report_fields(cycle)
+                    if any(fields.values()):
+                        _log.info("billing.cycle", **fields)
+                except Exception:
+                    _log.exception("billing.cycle_failed")
             if handled == 0:
                 with contextlib.suppress(TimeoutError):
                     await asyncio.wait_for(stop.wait(), timeout=IDLE_SLEEP_SECONDS)

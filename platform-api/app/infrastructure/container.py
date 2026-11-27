@@ -72,7 +72,14 @@ from app.use_cases.platform.feature_flags import (
     UpsertFlag,
 )
 from app.use_cases.platform.plans import ListPlans, UpsertPlan
-from app.use_cases.shared.ports import AccessClaims, EmailSender, ObjectStore
+from app.use_cases.shared.ports import (
+    AccessClaims,
+    EmailSender,
+    GatewayCredentials,
+    ObjectStore,
+)
+from app.use_cases.subscriptions.billing import PlatformBilling, PlatformPaymentConfig
+from app.use_cases.subscriptions.notifications import SendPlatformInvoiceEmail
 from app.use_cases.tenancy.manage_tenants import (
     ChangeTenantStatus,
     GetTenant,
@@ -134,6 +141,7 @@ class UseCases:
     guardians: Guardians
     audit_trail: AuditTrail
     online_payments: OnlinePayments
+    platform_billing: PlatformBilling
 
 
 @dataclass
@@ -292,6 +300,28 @@ def build_container(
     gateways = payment_gateways or GatewayRegistry(
         [PaystackGateway(base_url=settings.paystack_base_url)]
     )
+    platform_key = settings.platform_paystack_secret_key
+    platform_billing = PlatformBilling(
+        uow_factory=uow,
+        gateways=gateways,
+        payment=PlatformPaymentConfig(
+            provider="paystack",
+            credentials=(
+                GatewayCredentials(
+                    public_key=settings.platform_paystack_public_key or "",
+                    secret_key=platform_key.get_secret_value(),
+                )
+                if platform_key is not None
+                else None
+            ),
+            pay_page_url=settings.effective_platform_pay_page_url,
+            bank_transfer_details=settings.platform_bank_transfer_details,
+        ),
+        secret_hasher=secret_hasher,
+        cache=cache,
+        clock=clock,
+        limiter=limiter,
+    )
     challenges = MfaChallenges(cache=cache, secrets=secrets, secret_hasher=secret_hasher)
 
     def mfa_use_case(cls: type[M]) -> M:
@@ -426,6 +456,7 @@ def build_container(
             public_api_url=settings.public_api_url,
             allow_test_keys=settings.payments_allow_test_keys,
         ),
+        platform_billing=platform_billing,
     )
 
     email = _email_sender(settings)
@@ -435,6 +466,18 @@ def build_container(
             SendInviteEmail(email=email, school_app_url=settings.school_app_url)
         ],
     }
+    invoice_email = SendPlatformInvoiceEmail(
+        email=email,
+        uow_factory=uow,
+        pay_link=platform_billing.pay_link,
+        bank_transfer_details=settings.platform_bank_transfer_details,
+    )
+    for name in (
+        "subscriptions.invoice_issued",
+        "subscriptions.invoice_overdue",
+        "subscriptions.invoice_paid",
+    ):
+        handlers[name] = [invoice_email]
     outbox = OutboxRelay(session_factory, handlers)
     return Container(
         settings=settings,

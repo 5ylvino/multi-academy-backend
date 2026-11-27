@@ -109,6 +109,25 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "tenant.suspend": ActionInfo("Suspended the school", _SC),
         "tenant.reinstate": ActionInfo("Reinstated the school", _SC),
         "tenant.activate": ActionInfo("Activated the school", _SC),
+        "tenant.suspended_for_non_payment": ActionInfo(
+            "Suspended the school for an unpaid platform invoice", _SC
+        ),
+        "tenant.reinstated_after_payment": ActionInfo("Reinstated the school after payment", _SC),
+        # The school's subscription to the platform
+        "subscription.started": ActionInfo("Started the school's subscription", _SC),
+        "subscription.period_renewed": ActionInfo("Renewed the free plan for another period", _SC),
+        "subscription.invoice_issued": ActionInfo("Issued a platform invoice", _SC),
+        "subscription.invoice_reminder_sent": ActionInfo(
+            "Sent a reminder for an unpaid platform invoice", _SC
+        ),
+        "subscription.checkout_started": ActionInfo(
+            "Started paying a platform invoice online", _SC
+        ),
+        "subscription.invoice_paid": ActionInfo("Paid a platform invoice", _SC),
+        "subscription.payment_mismatch": ActionInfo("Platform invoice payment needs checking", _SC),
+        "subscription.invoice_voided": ActionInfo("Cancelled a platform invoice", _PL),
+        "subscription.plan_changed": ActionInfo("Changed the school's plan", _PL),
+        "subscription.cycle_run": ActionInfo("Ran platform billing", _PL),
         # Owner console
         "flag.upserted": ActionInfo("Changed a feature switch", _PL),
         "flag.override_set": ActionInfo("Changed a feature switch for one school", _PL),

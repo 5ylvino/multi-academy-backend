@@ -69,6 +69,17 @@ class Plan:
     features: frozenset[str] = field(default_factory=frozenset)
     student_limit: int | None = None
     active: bool = True
+    #: What a school pays the platform each billing period, in minor units:
+    #: ``base_price_minor + price_per_student_minor * active students``. Zero means free.
+    currency: str = "NGN"
+    base_price_minor: int = 0
+    price_per_student_minor: int = 0
+    #: Length of a billing period. 4 months matches a school term.
+    billing_interval_months: int = 4
+
+    @property
+    def is_free(self) -> bool:
+        return self.base_price_minor == 0 and self.price_per_student_minor == 0
 
 
 @dataclass(frozen=True, slots=True)

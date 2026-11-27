@@ -37,6 +37,10 @@ class PlanResponse(ApiModel):
     features: list[str]
     student_limit: int | None
     active: bool
+    currency: str
+    base_price_minor: int
+    price_per_student_minor: int
+    billing_interval_months: int
 
 
 class UpsertPlanRequest(ApiModel):
@@ -44,3 +48,9 @@ class UpsertPlanRequest(ApiModel):
     features: list[str] = Field(default_factory=list, max_length=500)
     student_limit: int | None = Field(default=None, ge=1)
     active: bool = True
+    currency: str = Field(default="NGN", min_length=3, max_length=3)
+    base_price_minor: int = Field(default=0, ge=0, le=10**12, description="Flat fee per period.")
+    price_per_student_minor: int = Field(
+        default=0, ge=0, le=10**10, description="Per active student, per period."
+    )
+    billing_interval_months: int = Field(default=4, description="1, 3, 4 (a term), 6 or 12.")

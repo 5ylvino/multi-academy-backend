@@ -7,7 +7,9 @@ from uuid import UUID
 
 from sqlalchemy import (
     ARRAY,
+    BigInteger,
     Boolean,
+    CheckConstraint,
     DateTime,
     ForeignKey,
     Integer,
@@ -30,8 +32,19 @@ class PlanRow(Base):
     features: Mapped[list[str]] = mapped_column(ARRAY(String(100)), server_default=text("'{}'"))
     student_limit: Mapped[int | None] = mapped_column(Integer)
     active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    currency: Mapped[str] = mapped_column(String(3), server_default=text("'NGN'"))
+    base_price_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    price_per_student_minor: Mapped[int] = mapped_column(BigInteger, server_default=text("0"))
+    billing_interval_months: Mapped[int] = mapped_column(SmallInteger, server_default=text("4"))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
+    )
+
+    __table_args__ = (
+        CheckConstraint(
+            "base_price_minor >= 0 AND price_per_student_minor >= 0", name="prices_not_negative"
+        ),
+        CheckConstraint("billing_interval_months IN (1, 3, 4, 6, 12)", name="interval_known"),
     )
 
 

@@ -25,6 +25,7 @@ def _production(**overrides: Any) -> Settings:
         "object_store_endpoint": "https://br-x.storage.c-2.us-east-2.aws.neon.tech",
         "object_store_access_key_id": "nak_live_x",
         "object_store_secret_access_key": SecretStr("nsk_live_x"),
+        "platform_bank_transfer_details": "GTBank 0123456789, MA-SMS Ltd",
     }
     base.update(overrides)
     return Settings(**base)
@@ -76,3 +77,21 @@ def test_production_refuses_test_payment_keys_and_plain_http() -> None:
         _production(payments_allow_test_keys=True)
     with pytest.raises(ValueError, match="PUBLIC_API_URL"):
         _production(public_api_url="http://api.mas.ng")
+
+
+def test_production_platform_billing_needs_a_way_to_pay() -> None:
+    with pytest.raises(ValueError, match="BANK_TRANSFER_DETAILS"):
+        _production(platform_bank_transfer_details=None)
+    with pytest.raises(ValueError, match="both platform Paystack keys"):
+        _production(platform_paystack_secret_key=SecretStr("sk_live_" + "x" * 40))
+    with pytest.raises(ValueError, match="live key"):
+        _production(
+            platform_paystack_secret_key=SecretStr("sk_test_" + "x" * 40),
+            platform_paystack_public_key="pk_test_" + "x" * 40,
+        )
+    live = _production(
+        platform_bank_transfer_details=None,
+        platform_paystack_secret_key=SecretStr("sk_live_" + "x" * 40),
+        platform_paystack_public_key="pk_live_" + "x" * 40,
+    )
+    assert live.effective_platform_pay_page_url.endswith("/billing/pay")
