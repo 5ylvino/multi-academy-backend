@@ -120,6 +120,16 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "inventory.stock_return": ActionInfo("Took back stock", _F),
         "inventory.stock_adjust": ActionInfo("Corrected stock after a count", _F),
         "inventory.stock_write_off": ActionInfo("Wrote off stock", _F),
+        # Payroll
+        "payroll.settings_updated": ActionInfo("Changed the payroll tax and pension settings", _F),
+        "payroll.profile_created": ActionInfo("Set up a staff member's pay", _F),
+        "payroll.profile_updated": ActionInfo("Changed a staff member's pay", _F),
+        "payroll.run_prepared": ActionInfo("Prepared a pay run", _F),
+        "payroll.run_refreshed": ActionInfo("Recalculated a pay run", _F),
+        "payroll.run_approved": ActionInfo("Approved a pay run", _F),
+        "payroll.run_paid": ActionInfo("Marked a pay run as paid", _F),
+        "payroll.run_voided": ActionInfo("Cancelled a pay run", _F),
+        "payroll.bank_schedule_exported": ActionInfo("Downloaded a bank payment schedule", _F),
         # School account
         "tenant.registered": ActionInfo("Signed up the school", _SC),
         "tenant.email_verified": ActionInfo("Confirmed the school's email", _SC),

@@ -138,6 +138,11 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | POST | `/api/v1/finance/expenses/{id}/approve`, `/reject`, `/void` | `expenses:approve` (not the recorder); recorder may cancel while pending |
 | GET/POST/PUT | `/api/v1/inventory/items`, `/{id}`, `/summary` | `inventory:read` / `inventory:manage` |
 | POST/GET | `/api/v1/inventory/items/{id}/movements`, `/api/v1/inventory/movements` | `inventory:manage` / `inventory:read` |
+| GET/PUT | `/api/v1/payroll/settings`, `/payroll/profiles`, `/profiles/{staff_id}` | `payroll:read` / `payroll:manage` |
+| GET/POST | `/api/v1/payroll/runs`, `/{id}`, `/{id}/refresh`, `/{id}/paid`, `/{id}/bank-schedule.csv` | `payroll:read` / `payroll:manage` |
+| POST | `/api/v1/payroll/runs/{id}/approve` | `pay_runs:approve` (not the preparer); also needed to cancel an approved run |
+| POST | `/api/v1/payroll/runs/{id}/void` | `payroll:manage` for drafts |
+| GET | `/api/v1/payroll/my-payslips` | any staff member, their own approved and paid payslips |
 | GET | `/api/v1/subscription`, `/subscription/invoices` | `organization:view`: the school's plan and platform invoices |
 | POST | `/api/v1/subscription/invoices/{id}/pay`, `/confirm` | `organization:update` / `organization:view` |
 | GET/POST | `/api/v1/platform-invoices/{id}`, `/pay`, `/confirm` `?token=` | anyone with the emailed pay link (works while suspended) |
@@ -195,6 +200,29 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
 - Items at or below their reorder level show as low (`low_only=true`); crossing the level
   raises `inventory.stock_low` once. `/inventory/summary` gives item count, low count and stock
   value at last cost. Filter movements by person to see what someone was issued.
+
+## Payroll
+
+- **Settings** are per school, not code, because tax law changes. Nigerian schools start from the
+  Nigeria Tax Act 2025 (from January 2026): annual bands 0% on the first NGN 800,000, then 15%,
+  18%, 21%, 23% and 25%; pension 8% staff and 10% school; housing fund off until the school
+  enrols (2.5% of basic); rent relief 20% of annual rent up to NGN 500,000; no PAYE at or below
+  NGN 70,000 a month. Other countries start with no statutory rules.
+- **Pay profile** per staff member: monthly basic, named allowances (each pensionable and taxable
+  or not), fixed deductions (loan, cooperative), annual rent, bank, account number and tax ID.
+  The account number is AES-GCM encrypted; only the last four digits are ever shown. Saving
+  returns a preview payslip; deductions above pay are refused.
+- **Monthly run**: `payroll:manage` prepares a draft for this month or next (one open run per
+  month, DB-enforced), refreshes it after changes, and a *different* person with
+  `pay_runs:approve` approves it (DB CHECK too). Approval freezes the payslips (a trigger refuses
+  any change, even by the table owner) and posts the cost: salary expense (gross + employer
+  pension) against salaries, PAYE, pension, housing fund and other deductions payable.
+- **Paying**: download the bank schedule CSV (full account numbers, every download logged), pay
+  through the bank, then mark the run paid with the batch reference. That moves net pay out of
+  the bank account in the ledger and emails each staff member that their payslip is ready (no
+  amounts in the email). Approvers can cancel an approved, unpaid run; the accrual is reversed.
+- `payroll:manage` doesn't imply `pay_runs:approve`: approval is its own resource on purpose,
+  since `<resource>:manage` grants every action on that resource.
 
 ## Online payments (Paystack)
 

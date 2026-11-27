@@ -29,6 +29,10 @@ class UserRepository(Protocol):
 
     async def save(self, user: UserAccount) -> None: ...
 
+    async def school_names(self, user_ids: set[UUID]) -> dict[UUID, str]:
+        """Full names of school users in the current scope, for lists and exports."""
+        ...
+
     async def school_users_with_roles(
         self, tenant_id: UUID, roles: frozenset[str]
     ) -> list[UserAccount]:

@@ -12,6 +12,7 @@ from app.presentation.http.v1.finance import routes as finance
 from app.presentation.http.v1.identity import guardian_routes, mfa_routes, users
 from app.presentation.http.v1.identity import routes as identity
 from app.presentation.http.v1.inventory import routes as inventory
+from app.presentation.http.v1.payroll import routes as payroll
 from app.presentation.http.v1.platform import routes as platform
 from app.presentation.http.v1.subscriptions import routes as subscriptions
 from app.presentation.http.v1.tenancy import routes as tenancy
@@ -34,6 +35,7 @@ api_router.include_router(online_routes.router)
 api_router.include_router(online_routes.webhook_router)
 api_router.include_router(spending_routes.router)
 api_router.include_router(inventory.router)
+api_router.include_router(payroll.router)
 api_router.include_router(subscriptions.school_router)
 api_router.include_router(subscriptions.public_router)
 api_router.include_router(subscriptions.platform_router)

@@ -148,6 +148,7 @@ def mailbox(container: Container) -> Mailbox:
                 "subscriptions.invoice_issued",
                 "subscriptions.invoice_overdue",
                 "subscriptions.invoice_paid",
+                "payroll.run_paid",
             )
         },
     )

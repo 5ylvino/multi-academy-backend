@@ -4,7 +4,7 @@ The handover file for this repository. **Read it first in every session, and upd
 of every task** (what changed, what's next, any new decision). Keep it short and current: replace
 stale lines rather than appending history forever. Detailed history lives in git and in PR #1.
 
-Last updated: 27 Nov 2026, after commit `b3eb2c2` (inventory). Next: payroll.
+Last updated: 27 Nov 2026, after the payroll commit. Next: Phase 3 (communication first).
 
 ---
 
@@ -77,6 +77,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
 | `ce575ff` | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
+| (this commit) | Payroll: per-school tax and pension settings (Nigeria 2026 defaults), staff pay profiles with encrypted account numbers, monthly runs prepared by one person and approved by another (DB-enforced), payslips frozen by trigger after approval, ledger accrual, payment and reversal, bank schedule CSV, payslip-ready emails, staff self-service payslips |
 | `b3eb2c2` | Inventory: stock items with units, SKU, reorder levels and location; append-only movements (receive with cost, issue to a person, return, write-off, count adjustment) with balance after each; never below zero; low-stock flag and event; store summary with value |
 | `a6ae592` | Budgets and expenses: school expense categories, a budget per category per term, expenses recorded by one person and approved by another (DB-enforced), posted to the ledger, over-budget approval needs a note, voids reverse, receipts attached, budget-against-actual report |
 | `39f1562` | Platform billing: plan prices (base + per student, per term by default), a subscription per school, invoices issued a week ahead, reminders, 14-day grace then suspension, payment (platform Paystack account, recorded bank transfer, or waiver) reinstates only billing suspensions; emailed pay link that works while suspended; console list/record/void/change plan/run; worker every 15 minutes |
@@ -96,8 +97,10 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
    RLS; invoice number sequence)
 10. `0010` budgets and expenses (categories, budgets, expenses; RLS; two-person CHECK)
 11. `0011` inventory (items, append-only movements; RLS)
+12. `0012` payroll (settings, profiles, runs, payslips; RLS; two-person CHECK; one open run per
+    month; frozen-payslip trigger)
 
-**Quality at last run:** 293 tests pass, coverage 90%, ruff, mypy --strict and the 5
+**Quality at last run:** 318 tests pass, coverage 91%, ruff, mypy --strict and the 5
 import-linter contracts clean.
 
 **Not verified:** the Docker image was not rebuilt after the `app/` move (no Docker in the cloud
@@ -107,8 +110,7 @@ session). Build it once locally: `docker compose up --build`.
 
 Next, in order:
 
-1. Rest of Phase 2: payroll. Hardening pass: console tables to their own
-   schema and DB role.
+1. Hardening pass: console tables to their own schema and DB role.
 2. **Phase 3** (school life): communication, safeguarding, operations, assessment, portal,
    reports. MFA mandatory for director, school admin, bursar, IT admin.
 3. **Phase 4** (growth): tutoring, intelligence (AI). AI tutor requirements from the owner
@@ -125,6 +127,9 @@ Follow-ups noted:
 - Malware scanning of uploaded files.
 - Online payments: optional "pass the Paystack fee to the parent" setting; email receipts on
   `finance.online_payment_received`; a staff screen to resolve `needs_review` checkouts.
+- Payroll: remitting PAYE and pension to the authorities (payable accounts are ready; a
+  "remit" step would move them to the bank), PDF payslips, arrears and one-off bonuses in a run,
+  pension fund administrator per staff member.
 - Platform billing: VAT on invoices and a PDF invoice; prorating a mid-period plan change
   (today the new price applies from the next invoice; void and re-issue to change an open one);
   a school-facing page at `<school app>/billing/pay` that calls the pay-link endpoints.
@@ -174,6 +179,10 @@ The full plan is the Claude Doc "MA-SMS Rebuild Plan"
 | Platform payments use the platform's own Paystack account, set by env; production needs keys or bank transfer details | Separate from school fees, where each school is the merchant |
 | Every checkout reference kept (`platform_invoice_checkouts`) | A payment finished on an older payment page still finds its invoice |
 | Invoice numbers from a Postgres sequence (gaps possible on rollback) | Low volume, no contention; numbers stay unique and ordered |
+| Payroll statutory rules are school settings with country defaults, not code | Tax law changes (Nigeria changed it for 2026) and differs by country |
+| Pay run approval is its own permission `pay_runs:approve` (director, principal, head teacher) | `payroll:manage` would otherwise imply `payroll:approve`, letting the bursar approve their own work |
+| Payslips frozen by a DB trigger once a run leaves draft; mistakes fixed in the next run | Pay records must not change after approval, whoever is connected |
+| Payslip emails carry no amounts | Pay is private and email is not |
 | Hosting left open until Phase 5 | Owner's call. One VPS can't carry the target load, so it needs a real sizing exercise |
 
 ## 7. Conventions

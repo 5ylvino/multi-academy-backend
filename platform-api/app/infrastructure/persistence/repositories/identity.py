@@ -170,6 +170,17 @@ class SqlUserRepository:
             raise Conflict(_STALE)
         user.version += 1
 
+    async def school_names(self, user_ids: set[UUID]) -> dict[UUID, str]:
+        if not user_ids or self._scope.tenant_id is None:
+            return {}
+        rows = await self._s.execute(
+            select(SchoolUserRow.id, SchoolUserRow.full_name).where(
+                SchoolUserRow.tenant_id == self._scope.tenant_id,
+                SchoolUserRow.id.in_(sorted(user_ids)),
+            )
+        )
+        return {row[0]: row[1] for row in rows.all()}
+
     async def school_users_with_roles(
         self, tenant_id: UUID, roles: frozenset[str]
     ) -> list[UserAccount]:

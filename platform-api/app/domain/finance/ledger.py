@@ -27,6 +27,12 @@ class Account(StrEnum):
     BANK = "bank"  # asset: transfers, POS and cheques
     GATEWAY_CLEARING = "gateway_clearing"  # asset: online money not yet settled to the bank
     EXPENSES = "expenses"  # expense: approved school spending
+    SALARY_EXPENSE = "salary_expense"  # expense: gross pay plus the employer's pension
+    SALARIES_PAYABLE = "salaries_payable"  # liability: net pay owed to staff
+    PAYE_PAYABLE = "paye_payable"  # liability: income tax withheld, owed to the tax office
+    PENSION_PAYABLE = "pension_payable"  # liability: both pension shares, owed to the PFAs
+    NHF_PAYABLE = "nhf_payable"  # liability: housing fund contributions
+    OTHER_DEDUCTIONS_PAYABLE = "other_deductions_payable"  # liability: loans, cooperative, etc.
 
 
 PER_STUDENT = frozenset({Account.RECEIVABLE, Account.STUDENT_CREDIT})
@@ -50,6 +56,9 @@ class EntryKind(StrEnum):
     REFUND_PAID = "refund_paid"
     EXPENSE_PAID = "expense_paid"
     EXPENSE_REVERSED = "expense_reversed"
+    PAYROLL_ACCRUED = "payroll_accrued"
+    PAYROLL_PAID = "payroll_paid"
+    PAYROLL_REVERSED = "payroll_reversed"
 
 
 @dataclass(frozen=True, slots=True)

@@ -67,6 +67,8 @@ from app.use_cases.identity.session_issuer import SessionIssuer
 from app.use_cases.identity.sign_in import SignIn
 from app.use_cases.identity.sign_out import SignOut
 from app.use_cases.inventory.stock import Inventory
+from app.use_cases.payroll.notifications import SendPayslipReadyEmails
+from app.use_cases.payroll.runs import Payroll
 from app.use_cases.platform.feature_flags import (
     ListFlags,
     ResolveTenantFeatures,
@@ -146,6 +148,7 @@ class UseCases:
     platform_billing: PlatformBilling
     spending: Spending
     inventory: Inventory
+    payroll: Payroll
 
 
 @dataclass
@@ -462,6 +465,7 @@ def build_container(
         ),
         platform_billing=platform_billing,
         inventory=Inventory(uow_factory=uow, clock=clock),
+        payroll=Payroll(uow_factory=uow, clock=clock, school_time=school_time, box=secret_box),
         spending=Spending(
             uow_factory=uow, clock=clock, school_time=school_time, store=object_store
         ),
@@ -486,6 +490,9 @@ def build_container(
         "subscriptions.invoice_paid",
     ):
         handlers[name] = [invoice_email]
+    handlers["payroll.run_paid"] = [
+        SendPayslipReadyEmails(email=email, uow_factory=uow, school_app_url=settings.school_app_url)
+    ]
     outbox = OutboxRelay(session_factory, handlers)
     return Container(
         settings=settings,

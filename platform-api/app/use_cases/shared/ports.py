@@ -25,6 +25,7 @@ from app.domain.identity.repositories import (
 )
 from app.domain.identity.roles import Realm
 from app.domain.inventory.repositories import InventoryRepository
+from app.domain.payroll.repositories import PayrollRepository
 from app.domain.platform.repositories import FeatureFlagRepository, PlanRepository
 from app.domain.shared.entity import AggregateRoot
 from app.domain.shared.events import DomainEvent
@@ -328,6 +329,9 @@ class UnitOfWork(Protocol):
 
     @property
     def inventory(self) -> InventoryRepository: ...
+
+    @property
+    def payroll(self) -> PayrollRepository: ...
 
     @property
     def audit_log(self) -> AuditLogRepository: ...
