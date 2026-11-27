@@ -11,8 +11,8 @@ from masms.domain.finance.payments import PaymentStatus, RefundStatus
 from masms.domain.identity.roles import Realm
 from masms.use_cases.finance.common import (
     MoneyView,
+    ensure_can_see,
     load_settings,
-    may_see_student,
     require_student,
 )
 from masms.use_cases.shared.ports import Scope, UnitOfWorkFactory
@@ -63,9 +63,9 @@ class Statements:
 
     async def statement(self, actor: Principal, student_id: UUID) -> StatementView:
         actor.require_realm(Realm.SCHOOL)
-        may_see_student(actor, student_id)
         tenant_id = actor.school_tenant_id
         async with self._uow_factory(Scope.tenant(tenant_id), read_only=True) as uow:
+            await ensure_can_see(uow, actor, student_id)
             student = await require_student(uow, tenant_id, student_id)
             settings = await load_settings(uow, tenant_id)
             invoices = await uow.finance.invoices_of_student(student_id)

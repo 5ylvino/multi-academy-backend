@@ -8,7 +8,7 @@ from uuid import UUID
 
 from masms.domain.academics.structure import SchoolLevelCode, TermCode
 from masms.domain.finance.billing import Scholarship, ScholarshipKind
-from masms.domain.finance.catalog import FeeItem, FinanceSettings
+from masms.domain.finance.catalog import BankAccount, FeeItem, FinanceSettings
 from masms.domain.identity.roles import Realm
 from masms.domain.shared.errors import NotFound, PermissionDenied, ValidationFailed
 from masms.domain.shared.money import Money
@@ -23,10 +23,46 @@ from masms.use_cases.shared.principal import Principal
 
 
 @dataclass(frozen=True, slots=True)
+class BankAccountView:
+    bank_name: str
+    account_name: str
+    account_number: str
+
+
+@dataclass(frozen=True, slots=True)
 class SettingsView:
     currency: str
     default_due_days: int
     currency_locked: bool
+    online_payments_enabled: bool
+    payment_proofs_enabled: bool
+    payment_instructions: str | None
+    bank_accounts: list[BankAccountView]
+
+    @classmethod
+    def of(cls, s: FinanceSettings, *, locked: bool) -> SettingsView:
+        return cls(
+            currency=s.currency,
+            default_due_days=s.default_due_days,
+            currency_locked=locked,
+            online_payments_enabled=s.online_payments_enabled,
+            payment_proofs_enabled=s.payment_proofs_enabled,
+            payment_instructions=s.payment_instructions,
+            bank_accounts=[
+                BankAccountView(a.bank_name, a.account_name, a.account_number)
+                for a in s.bank_accounts
+            ],
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class UpdateSettingsCommand:
+    currency: str
+    default_due_days: int
+    online_payments_enabled: bool = False
+    payment_proofs_enabled: bool = True
+    payment_instructions: str | None = None
+    bank_accounts: list[BankAccountView] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,6 +143,10 @@ class ScholarshipView:
         )
 
 
+#: No payment gateway is wired yet (next slice), so online payments can't be switched on.
+GATEWAY_READY = False
+
+
 def _level(value: str | None) -> str | None:
     if value is None:
         return None
@@ -137,21 +177,34 @@ class FinanceCatalog:
         async with self._uow_factory(Scope.tenant(tenant_id), read_only=True) as uow:
             settings = await load_settings(uow, tenant_id)
             locked = await uow.finance.has_invoices()
-        return SettingsView(settings.currency, settings.default_due_days, locked)
+        return SettingsView.of(settings, locked=locked)
 
-    async def update_settings(
-        self, actor: Principal, *, currency: str, default_due_days: int
-    ) -> SettingsView:
+    async def update_settings(self, actor: Principal, cmd: UpdateSettingsCommand) -> SettingsView:
+        """Currency, due days and how parents may pay. Online payments stay off until a
+        payment gateway is connected; proof of outside payment can be switched off."""
         actor.require_realm(Realm.SCHOOL)
         actor.require("fees:manage")
         tenant_id = actor.school_tenant_id
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             settings = await load_settings(uow, tenant_id)
             locked = await uow.finance.has_invoices()
-            before = (settings.currency, settings.default_due_days)
+            before = SettingsView.of(settings, locked=locked)
             settings.update(
-                currency=currency, default_due_days=default_due_days, currency_locked=locked
+                currency=cmd.currency,
+                default_due_days=cmd.default_due_days,
+                currency_locked=locked,
             )
+            settings.set_payment_options(
+                online_payments_enabled=cmd.online_payments_enabled,
+                payment_proofs_enabled=cmd.payment_proofs_enabled,
+                payment_instructions=cmd.payment_instructions,
+                bank_accounts=[
+                    BankAccount(a.bank_name, a.account_name, a.account_number)
+                    for a in (cmd.bank_accounts or [])
+                ],
+                gateway_ready=GATEWAY_READY,
+            )
+            after = SettingsView.of(settings, locked=locked)
             await uow.finance.save_settings(settings)
             uow.audit(
                 AuditEntry(
@@ -162,16 +215,19 @@ class FinanceCatalog:
                     target_type="finance_settings",
                     target_id=str(tenant_id),
                     metadata={
-                        "from": {"currency": before[0], "default_due_days": before[1]},
-                        "to": {
-                            "currency": settings.currency,
-                            "default_due_days": settings.default_due_days,
-                        },
+                        key: {"from": getattr(before, key), "to": getattr(after, key)}
+                        for key in (
+                            "currency",
+                            "default_due_days",
+                            "online_payments_enabled",
+                            "payment_proofs_enabled",
+                        )
+                        if getattr(before, key) != getattr(after, key)
                     },
                 )
             )
             await uow.commit()
-        return SettingsView(settings.currency, settings.default_due_days, locked)
+        return after
 
     # ---- fee items -----------------------------------------------------------------------
 

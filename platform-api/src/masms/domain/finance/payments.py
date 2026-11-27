@@ -111,6 +111,7 @@ class Payment(AggregateRoot):
         now: datetime,
         idempotency_key: str | None = None,
         request_fingerprint: str | None = None,
+        payment_id: UUID | None = None,
     ) -> Payment:
         if amount.amount_minor <= 0:
             raise ValidationFailed(
@@ -129,7 +130,7 @@ class Payment(AggregateRoot):
             )
         zero = Money.zero(amount.currency)
         payment = cls(
-            id=new_id(),
+            id=payment_id or new_id(),
             tenant_id=tenant_id,
             receipt_number=receipt_number,
             student_id=student_id,

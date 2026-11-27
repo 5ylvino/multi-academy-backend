@@ -21,7 +21,7 @@ from masms.domain.finance.billing import (
     Scholarship,
     ScholarshipKind,
 )
-from masms.domain.finance.catalog import FeeItem, FinanceSettings
+from masms.domain.finance.catalog import BankAccount, FeeItem, FinanceSettings
 from masms.domain.finance.ledger import Account, JournalEntry, StudentBalance
 from masms.domain.finance.payments import (
     Allocation,
@@ -30,6 +30,13 @@ from masms.domain.finance.payments import (
     PaymentStatus,
     Refund,
     RefundStatus,
+)
+from masms.domain.finance.proofs import (
+    PaymentProof,
+    ProofFile,
+    ProofStatus,
+    ReceiptType,
+    normalise_reference,
 )
 from masms.domain.shared.errors import Conflict, ValidationFailed
 from masms.domain.shared.ids import new_id
@@ -43,6 +50,7 @@ from masms.infrastructure.persistence.models.finance import (
     InvoiceRow,
     JournalEntryRow,
     JournalLineRow,
+    PaymentProofRow,
     PaymentRow,
     RefundRow,
     ScholarshipRow,
@@ -184,6 +192,40 @@ def _refund(r: RefundRow) -> Refund:
     )
 
 
+def _proof(r: PaymentProofRow) -> PaymentProof:
+    return PaymentProof(
+        id=r.id,
+        tenant_id=r.tenant_id,
+        student_id=r.student_id,
+        submitted_by=r.submitted_by,
+        submitted_at=r.submitted_at,
+        amount=Money(r.amount_minor, r.currency),
+        method=PaymentMethod(r.method),
+        paid_on=r.paid_on,
+        reference=r.reference,
+        reference_key=r.reference_key,
+        payer_name=r.payer_name,
+        note=r.note,
+        file=ProofFile(
+            key=r.file_key,
+            content_type=ReceiptType(r.file_type),
+            size=r.file_size,
+            sha256=r.file_sha256,
+        ),
+        invoice_id=r.invoice_id,
+        status=ProofStatus(r.status),
+        reviewed_by=r.reviewed_by,
+        reviewed_at=r.reviewed_at,
+        review_note=r.review_note,
+        approved_amount=(
+            Money(r.approved_amount_minor, r.currency)
+            if r.approved_amount_minor is not None
+            else None
+        ),
+        payment_id=r.payment_id,
+    )
+
+
 class SqlFinanceRepository:
     def __init__(self, session: AsyncSession, scope: ScopeState) -> None:
         self._s = session
@@ -206,6 +248,17 @@ class SqlFinanceRepository:
             tenant_id=row.tenant_id,
             currency=row.currency,
             default_due_days=row.default_due_days,
+            online_payments_enabled=row.online_payments_enabled,
+            payment_proofs_enabled=row.payment_proofs_enabled,
+            payment_instructions=row.payment_instructions,
+            bank_accounts=tuple(
+                BankAccount(
+                    bank_name=str(a["bank_name"]),
+                    account_name=str(a["account_name"]),
+                    account_number=str(a["account_number"]),
+                )
+                for a in row.bank_accounts
+            ),
             version=row.version,
         )
 
@@ -213,6 +266,17 @@ class SqlFinanceRepository:
         values = {
             "currency": settings.currency,
             "default_due_days": settings.default_due_days,
+            "online_payments_enabled": settings.online_payments_enabled,
+            "payment_proofs_enabled": settings.payment_proofs_enabled,
+            "payment_instructions": settings.payment_instructions,
+            "bank_accounts": [
+                {
+                    "bank_name": a.bank_name,
+                    "account_name": a.account_name,
+                    "account_number": a.account_number,
+                }
+                for a in settings.bank_accounts
+            ],
             "version": settings.version + 1,
         }
         stmt = (
@@ -514,6 +578,7 @@ class SqlFinanceRepository:
                     currency=p.amount.currency,
                     method=p.method.value,
                     reference=p.reference,
+                    reference_key=normalise_reference(p.reference) if p.reference else None,
                     received_on=p.received_on,
                     recorded_by=p.recorded_by,
                     recorded_at=p.recorded_at,
@@ -734,6 +799,125 @@ class SqlFinanceRepository:
             .order_by(RefundRow.requested_at)
         )
         return [_refund(r) for r in rows]
+
+    async def payment_reference_exists(self, reference_key: str) -> bool:
+        return bool(
+            await self._s.scalar(
+                select(
+                    exists().where(
+                        PaymentRow.tenant_id == self._tid,
+                        PaymentRow.reference_key == reference_key,
+                        PaymentRow.status == PaymentStatus.RECORDED.value,
+                    )
+                )
+            )
+        )
+
+    # ---- proofs of payment ---------------------------------------------------------------
+
+    async def add_proof(self, proof: PaymentProof) -> None:
+        p = proof
+        try:
+            await self._s.execute(
+                pg_insert(PaymentProofRow).values(
+                    tenant_id=self._tid,
+                    id=p.id,
+                    student_id=p.student_id,
+                    submitted_by=p.submitted_by,
+                    submitted_at=p.submitted_at,
+                    amount_minor=p.amount.amount_minor,
+                    currency=p.amount.currency,
+                    method=p.method.value,
+                    paid_on=p.paid_on,
+                    reference=p.reference,
+                    reference_key=p.reference_key,
+                    payer_name=p.payer_name,
+                    note=p.note,
+                    file_key=p.file.key,
+                    file_type=p.file.content_type.value,
+                    file_size=p.file.size,
+                    file_sha256=p.file.sha256,
+                    invoice_id=p.invoice_id,
+                    status=p.status.value,
+                )
+            )
+        except IntegrityError as exc:
+            text_ = str(exc.orig)
+            if "uq_finance_payment_proofs_reference" in text_:
+                raise Conflict(
+                    "A payment with this reference has already been submitted.",
+                    code="duplicate_reference",
+                ) from exc
+            if "uq_finance_payment_proofs_file" in text_:
+                raise Conflict(
+                    "This receipt has already been uploaded.", code="duplicate_file"
+                ) from exc
+            raise
+
+    async def get_proof(self, proof_id: UUID, *, for_update: bool = False) -> PaymentProof | None:
+        stmt = select(PaymentProofRow).where(
+            PaymentProofRow.tenant_id == self._tid, PaymentProofRow.id == proof_id
+        )
+        if for_update:
+            stmt = stmt.with_for_update()
+        row = (await self._s.execute(stmt.execution_options(populate_existing=True))).scalar()
+        return _proof(row) if row else None
+
+    async def save_proof(self, proof: PaymentProof) -> None:
+        await self._s.execute(
+            update(PaymentProofRow)
+            .where(PaymentProofRow.tenant_id == self._tid, PaymentProofRow.id == proof.id)
+            .values(
+                status=proof.status.value,
+                reviewed_by=proof.reviewed_by,
+                reviewed_at=proof.reviewed_at,
+                review_note=proof.review_note,
+                approved_amount_minor=(
+                    proof.approved_amount.amount_minor if proof.approved_amount else None
+                ),
+                payment_id=proof.payment_id,
+            )
+            .execution_options(synchronize_session=False)
+        )
+
+    async def open_proofs_for_student(self, student_id: UUID) -> int:
+        return int(
+            await self._s.scalar(
+                select(func.count()).where(
+                    PaymentProofRow.tenant_id == self._tid,
+                    PaymentProofRow.student_id == student_id,
+                    PaymentProofRow.status == ProofStatus.SUBMITTED.value,
+                )
+            )
+            or 0
+        )
+
+    async def list_proofs(
+        self,
+        *,
+        status: ProofStatus | None,
+        student_ids: list[UUID] | None,
+        cursor: str | None,
+        limit: int,
+    ) -> Page[PaymentProof]:
+        stmt = select(PaymentProofRow).where(PaymentProofRow.tenant_id == self._tid)
+        if status is not None:
+            stmt = stmt.where(PaymentProofRow.status == status.value)
+        if student_ids is not None:
+            if not student_ids:
+                return Page(items=[], next_cursor=None)
+            stmt = stmt.where(PaymentProofRow.student_id.in_(student_ids))
+        if cursor:
+            stmt = stmt.where(PaymentProofRow.id < _decode(cursor))
+        rows = list(
+            await self._s.scalars(stmt.order_by(PaymentProofRow.id.desc()).limit(limit + 1))
+        )
+        more = len(rows) > limit
+        rows = rows[:limit]
+        return Page(
+            items=[_proof(r) for r in rows],
+            next_cursor=_encode(rows[-1].id) if more and rows else None,
+        )
 
     # ---- ledger --------------------------------------------------------------------------
 

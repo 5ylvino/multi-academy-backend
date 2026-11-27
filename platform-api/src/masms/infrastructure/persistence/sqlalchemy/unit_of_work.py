@@ -18,6 +18,7 @@ from masms.infrastructure.persistence.repositories.academics import SqlAcademics
 from masms.infrastructure.persistence.repositories.attendance import SqlAttendanceRepository
 from masms.infrastructure.persistence.repositories.finance import SqlFinanceRepository
 from masms.infrastructure.persistence.repositories.identity import (
+    SqlGuardianRepository,
     SqlInviteRepository,
     SqlMfaRepository,
     SqlRefreshSessionRepository,
@@ -74,6 +75,7 @@ class SqlAlchemyUnitOfWork:
         self.flags = SqlFeatureFlagRepository(s)
         self.plans = SqlPlanRepository(s)
         self.invites = SqlInviteRepository(s)
+        self.guardians = SqlGuardianRepository(s, self._scope)
         self.mfa = SqlMfaRepository(s)
         self.attendance = SqlAttendanceRepository(s, self._scope)
         self.academics = SqlAcademicsRepository(s, self._scope)

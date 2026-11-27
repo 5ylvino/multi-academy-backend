@@ -128,3 +128,32 @@ class UserInviteRow(Base):
         ),
         UniqueConstraint("tenant_id", "token_hash", name="uq_user_invites_tenant_token"),
     )
+
+
+class GuardianLinkRow(Base):
+    """Parent to student. Tenant-scoped with RLS."""
+
+    __tablename__ = "school_guardian_links"
+
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    parent_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    student_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    relationship: Mapped[str] = mapped_column(String(16))
+    created_by: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "parent_id"],
+            ["school_users.tenant_id", "school_users.id"],
+            ondelete="CASCADE",
+            name="fk_school_guardian_links_parent",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "student_id"],
+            ["school_users.tenant_id", "school_users.id"],
+            ondelete="CASCADE",
+            name="fk_school_guardian_links_student",
+        ),
+        Index("ix_school_guardian_links_student", "tenant_id", "student_id"),
+    )

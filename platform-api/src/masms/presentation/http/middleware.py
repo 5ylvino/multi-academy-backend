@@ -91,3 +91,75 @@ class RequestContextMiddleware:
                     status=status_code,
                     duration_ms=round(elapsed * 1000, 2),
                 )
+
+
+class BodySizeLimitMiddleware:
+    """Refuse request bodies over a limit before anything buffers or spools them.
+
+    Checks Content-Length up front and also counts streamed chunks, so chunked uploads can't
+    slip past. File uploads allow a little over the 5 MB file limit for the form fields.
+    """
+
+    def __init__(self, app: ASGIApp, *, default_limit: int, upload_limit: int) -> None:
+        self.app = app
+        self.default_limit = default_limit
+        self.upload_limit = upload_limit
+
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
+        if scope["type"] != "http":
+            await self.app(scope, receive, send)
+            return
+        headers = dict(scope["headers"])
+        is_upload = headers.get(b"content-type", b"").startswith(b"multipart/form-data")
+        limit = self.upload_limit if is_upload else self.default_limit
+        declared = headers.get(b"content-length")
+        if declared is not None and declared.isdigit() and int(declared) > limit:
+            await _too_large(send)
+            return
+        received = 0
+
+        async def limited() -> Message:
+            nonlocal received
+            message = await receive()
+            if message["type"] == "http.request":
+                received += len(message.get("body", b""))
+                if received > limit:
+                    raise _BodyTooLarge
+            return message
+
+        started = False
+
+        async def tracked(message: Message) -> None:
+            nonlocal started
+            if message["type"] == "http.response.start":
+                started = True
+            await send(message)
+
+        try:
+            await self.app(scope, limited, tracked)
+        except _BodyTooLarge:
+            if not started:
+                await _too_large(send)
+
+
+class _BodyTooLarge(Exception):
+    pass
+
+
+async def _too_large(send: Send) -> None:
+    body = (
+        b'{"type":"https://docs.mas.ng/errors/payload_too_large","title":"Request is too large.",'
+        b'"status":413,"code":"payload_too_large"}'
+    )
+    await send(
+        {
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [
+                (b"content-type", b"application/problem+json"),
+                (b"content-length", str(len(body)).encode()),
+                (b"connection", b"close"),
+            ],
+        }
+    )
+    await send({"type": "http.response.body", "body": body})

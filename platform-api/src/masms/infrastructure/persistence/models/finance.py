@@ -46,6 +46,10 @@ class FinanceSettingsRow(Base):
     tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
     currency: Mapped[str] = mapped_column(String(3))
     default_due_days: Mapped[int] = mapped_column(SmallInteger)
+    online_payments_enabled: Mapped[bool] = mapped_column(Boolean, server_default=text("false"))
+    payment_proofs_enabled: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    payment_instructions: Mapped[str | None] = mapped_column(String(1000))
+    bank_accounts: Mapped[list[dict[str, Any]]] = mapped_column(JSONB, server_default=text("'[]'"))
     version: Mapped[int] = mapped_column(Integer, server_default=text("1"))
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
@@ -188,6 +192,7 @@ class PaymentRow(Base):
     currency: Mapped[str] = mapped_column(String(3))
     method: Mapped[str] = mapped_column(String(16))
     reference: Mapped[str | None] = mapped_column(String(120))
+    reference_key: Mapped[str | None] = mapped_column(String(120))
     received_on: Mapped[date] = mapped_column(Date)
     recorded_by: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
     recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
@@ -215,6 +220,12 @@ class PaymentRow(Base):
             name="parts_within_amount",
         ),
         Index("ix_finance_payments_student", "tenant_id", "student_id", "received_on"),
+        Index(
+            "ix_finance_payments_reference",
+            "tenant_id",
+            "reference_key",
+            postgresql_where=text("reference_key IS NOT NULL AND status = 'recorded'"),
+        ),
     )
 
 
@@ -326,4 +337,75 @@ class JournalLineRow(Base):
             postgresql_where=text("student_id IS NOT NULL"),
         ),
         Index("ix_finance_journal_lines_account", "tenant_id", "account", "currency"),
+    )
+
+
+class PaymentProofRow(Base):
+    __tablename__ = "finance_payment_proofs"
+
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    student_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    submitted_by: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    amount_minor: Mapped[int] = mapped_column(BigInteger)
+    currency: Mapped[str] = mapped_column(String(3))
+    method: Mapped[str] = mapped_column(String(16))
+    paid_on: Mapped[date] = mapped_column(Date)
+    reference: Mapped[str] = mapped_column(String(120))
+    reference_key: Mapped[str] = mapped_column(String(120))
+    payer_name: Mapped[str | None] = mapped_column(String(120))
+    note: Mapped[str | None] = mapped_column(String(500))
+    file_key: Mapped[str] = mapped_column(String(255))
+    file_type: Mapped[str] = mapped_column(String(32))
+    file_size: Mapped[int] = mapped_column(Integer)
+    file_sha256: Mapped[str] = mapped_column(String(64))
+    invoice_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True))
+    status: Mapped[str] = mapped_column(String(16))
+    reviewed_by: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_note: Mapped[str | None] = mapped_column(String(500))
+    approved_amount_minor: Mapped[int | None] = mapped_column(BigInteger)
+    payment_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True))
+
+    __table_args__ = (
+        _student_fk(),
+        ForeignKeyConstraint(
+            ["tenant_id", "invoice_id"],
+            ["finance_invoices.tenant_id", "finance_invoices.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "payment_id"],
+            ["finance_payments.tenant_id", "finance_payments.id"],
+            ondelete="RESTRICT",
+        ),
+        CheckConstraint("amount_minor > 0", name="amount_positive"),
+        CheckConstraint(
+            "status IN ('submitted', 'approved', 'rejected', 'withdrawn')", name="status_known"
+        ),
+        CheckConstraint(
+            "reviewed_by IS NULL OR reviewed_by <> submitted_by", name="different_reviewer"
+        ),
+        CheckConstraint(
+            "(status = 'approved') = (payment_id IS NOT NULL)", name="approved_has_payment"
+        ),
+        # The same bank reference or the same file can't be claimed twice while it is live.
+        Index(
+            "uq_finance_payment_proofs_reference",
+            "tenant_id",
+            "method",
+            "reference_key",
+            unique=True,
+            postgresql_where=text("status IN ('submitted', 'approved')"),
+        ),
+        Index(
+            "uq_finance_payment_proofs_file",
+            "tenant_id",
+            "file_sha256",
+            unique=True,
+            postgresql_where=text("status IN ('submitted', 'approved')"),
+        ),
+        Index("ix_finance_payment_proofs_queue", "tenant_id", "status", "submitted_at"),
+        Index("ix_finance_payment_proofs_student", "tenant_id", "student_id"),
     )

@@ -22,15 +22,33 @@ class MoneyModel(ApiModel):
     currency: str
 
 
+class BankAccountModel(ApiModel):
+    bank_name: str = Field(min_length=1, max_length=80)
+    account_name: str = Field(min_length=1, max_length=120)
+    account_number: str = Field(min_length=4, max_length=40)
+
+
 class SettingsResponse(ApiModel):
     currency: str
     default_due_days: int
     currency_locked: bool
+    online_payments_enabled: bool
+    payment_proofs_enabled: bool
+    payment_instructions: str | None
+    bank_accounts: list[BankAccountModel]
 
 
 class SettingsRequest(ApiModel):
     currency: str = Field(min_length=3, max_length=3)
     default_due_days: int = Field(ge=0, le=180)
+    online_payments_enabled: bool = Field(
+        default=False, description="Needs a connected payment gateway"
+    )
+    payment_proofs_enabled: bool = Field(
+        default=True, description="Parents may upload receipts for payments made to the school"
+    )
+    payment_instructions: str | None = Field(default=None, max_length=1000)
+    bank_accounts: list[BankAccountModel] = Field(default_factory=list, max_length=5)
 
 
 class FeeItemRequest(ApiModel):
@@ -237,3 +255,37 @@ class TrialBalanceRowModel(ApiModel):
 class TrialBalanceResponse(ApiModel):
     rows: list[TrialBalanceRowModel]
     balanced: bool
+
+
+class ProofResponse(ApiModel):
+    id: UUID
+    student_id: UUID
+    submitted_by: UUID
+    submitted_at: datetime
+    amount: MoneyModel
+    method: str
+    paid_on: date
+    reference: str
+    payer_name: str | None
+    note: str | None
+    invoice_id: UUID | None
+    file_type: str
+    file_size: int
+    status: str
+    reviewed_by: UUID | None
+    reviewed_at: datetime | None
+    review_note: str | None
+    approved_amount: MoneyModel | None
+    payment_id: UUID | None
+
+
+class ProofPage(ApiModel):
+    items: list[ProofResponse]
+    page: PageMeta
+
+
+class ApproveProofRequest(ApiModel):
+    amount_minor: int | None = Field(
+        default=None, gt=0, le=MAX_MINOR, description="Only if the bank shows a different amount"
+    )
+    note: str | None = Field(default=None, max_length=500)

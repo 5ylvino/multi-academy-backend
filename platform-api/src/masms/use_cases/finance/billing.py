@@ -20,8 +20,8 @@ from masms.domain.shared.value_objects import Page
 from masms.use_cases.finance.common import (
     MoneyView,
     due_date,
+    ensure_can_see,
     load_settings,
-    may_see_student,
     post_invoice_issued,
     post_invoice_voided,
     release,
@@ -328,12 +328,12 @@ class Billing:
         actor.require_realm(Realm.SCHOOL)
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
             invoice = await uow.finance.get_invoice(invoice_id)
-        if invoice is None:
-            raise NotFound("Invoice not found.")
-        try:
-            may_see_student(actor, invoice.student_id)
-        except PermissionDenied as exc:
-            raise NotFound("Invoice not found.") from exc
+            if invoice is None:
+                raise NotFound("Invoice not found.")
+            try:
+                await ensure_can_see(uow, actor, invoice.student_id)
+            except PermissionDenied as exc:
+                raise NotFound("Invoice not found.") from exc
         return InvoiceView.of(invoice)
 
     async def list_invoices(
@@ -347,15 +347,15 @@ class Billing:
         limit: int,
     ) -> Page[InvoiceView]:
         actor.require_realm(Realm.SCHOOL)
-        if not actor.permissions.allows("invoices:read"):
-            # Students may list only their own invoices.
-            may_see_student(actor, student_id or actor.user_id)
-            student_id = actor.user_id
         try:
             status_filter = InvoiceStatus(status) if status else None
         except ValueError as exc:
             raise ValidationFailed("Unknown status.", details={"field": "status"}) from exc
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
+            if not actor.permissions.allows("invoices:read"):
+                # Students list their own invoices; parents pick one of their children.
+                student_id = student_id or actor.user_id
+                await ensure_can_see(uow, actor, student_id)
             page = await uow.finance.list_invoices(
                 student_id=student_id,
                 term_id=term_id,

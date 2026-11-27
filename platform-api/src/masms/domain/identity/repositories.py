@@ -6,6 +6,7 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from masms.domain.identity.guardians import GuardianLink
 from masms.domain.identity.invite import UserInvite
 from masms.domain.identity.mfa import TotpFactor
 from masms.domain.identity.session import RefreshSession
@@ -71,3 +72,19 @@ class MfaRepository(Protocol):
     async def upsert(self, factor: TotpFactor) -> None: ...
 
     async def delete(self, user_id: UUID) -> None: ...
+
+
+class GuardianRepository(Protocol):
+    """Scoped to the current school."""
+
+    async def add(self, link: GuardianLink) -> bool:
+        """False if the link already exists."""
+        ...
+
+    async def remove(self, parent_id: UUID, student_id: UUID) -> bool: ...
+
+    async def guardians_of(self, student_id: UUID) -> list[GuardianLink]: ...
+
+    async def children_of(self, parent_id: UUID) -> list[GuardianLink]: ...
+
+    async def is_guardian(self, parent_id: UUID, student_id: UUID) -> bool: ...

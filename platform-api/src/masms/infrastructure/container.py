@@ -28,15 +28,19 @@ from masms.infrastructure.security.passwords import Argon2PasswordHasher
 from masms.infrastructure.security.secret_box import AesGcmSecretBox, decode_key
 from masms.infrastructure.security.secrets import CryptoSecretGenerator, HmacSecretHasher
 from masms.infrastructure.security.tokens import JwtTokenService, generate_private_key_pem
+from masms.infrastructure.storage.local import LocalObjectStore
+from masms.infrastructure.storage.s3 import S3ObjectStore
 from masms.use_cases.academics.structure import AcademicCalendar, ClassesAndSubjects, Enrolments
 from masms.use_cases.attendance.registers import StudentRegisters
 from masms.use_cases.attendance.staff import StaffAttendance
 from masms.use_cases.finance.billing import Billing
 from masms.use_cases.finance.catalog import FinanceCatalog
 from masms.use_cases.finance.payments import Payments
+from masms.use_cases.finance.proofs import PaymentProofs
 from masms.use_cases.finance.statements import Statements
 from masms.use_cases.identity.create_platform_user import CreatePlatformUser
 from masms.use_cases.identity.get_current_user import GetCurrentUser
+from masms.use_cases.identity.guardians import Guardians
 from masms.use_cases.identity.manage_school_users import (
     AcceptInvite,
     InviteSchoolUser,
@@ -64,7 +68,7 @@ from masms.use_cases.platform.feature_flags import (
     UpsertFlag,
 )
 from masms.use_cases.platform.plans import ListPlans, UpsertPlan
-from masms.use_cases.shared.ports import AccessClaims, EmailSender
+from masms.use_cases.shared.ports import AccessClaims, EmailSender, ObjectStore
 from masms.use_cases.tenancy.manage_tenants import (
     ChangeTenantStatus,
     GetTenant,
@@ -122,6 +126,8 @@ class UseCases:
     billing: Billing
     payments: Payments
     statements: Statements
+    payment_proofs: PaymentProofs
+    guardians: Guardians
 
 
 @dataclass
@@ -176,6 +182,26 @@ def _email_sender(settings: Settings) -> EmailSender:
     return LogEmailSender()
 
 
+def _object_store(settings: Settings) -> ObjectStore:
+    if settings.object_store == "s3":
+        if not (
+            settings.object_store_endpoint
+            and settings.object_store_access_key_id
+            and settings.object_store_secret_access_key
+        ):
+            raise ValueError("Object storage endpoint and keys are required for s3.")
+        return S3ObjectStore(
+            endpoint=settings.object_store_endpoint,
+            bucket=settings.object_store_bucket,
+            region=settings.object_store_region,
+            access_key=settings.object_store_access_key_id,
+            secret_key=settings.object_store_secret_access_key.get_secret_value(),
+        )
+    if settings.object_store != "local":
+        raise ValueError(f"Unknown object store {settings.object_store!r}.")
+    return LocalObjectStore(settings.object_store_path)
+
+
 def _dev_key(settings: Settings, purpose: bytes) -> bytes:
     pepper = settings.secret_pepper.get_secret_value().encode()
     return hmac.new(pepper, b"masms-dev-key:" + purpose, hashlib.sha256).digest()
@@ -228,6 +254,7 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
         _log.warning("tokens.derived_dev_key", detail="Set MASMS_JWT_PRIVATE_KEY_PEM")
         private_pem = generate_private_key_pem(_dev_key(settings, b"jwt-signing"))
     secret_box = _secret_box(settings)
+    object_store = _object_store(settings)
     tokens = JwtTokenService(
         private_key_pem=private_pem,
         key_id=settings.jwt_key_id,
@@ -365,6 +392,14 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
         billing=Billing(uow_factory=uow, clock=clock, school_time=school_time),
         payments=Payments(uow_factory=uow, clock=clock, school_time=school_time),
         statements=Statements(uow_factory=uow),
+        payment_proofs=PaymentProofs(
+            uow_factory=uow,
+            clock=clock,
+            school_time=school_time,
+            store=object_store,
+            limiter=limiter,
+        ),
+        guardians=Guardians(uow_factory=uow, clock=clock),
     )
 
     email = _email_sender(settings)

@@ -24,6 +24,7 @@ from masms.domain.identity.roles import Realm, SchoolRole
 from masms.domain.identity.user import UserAccount
 from masms.domain.shared.errors import NotFound, PermissionDenied, ValidationFailed
 from masms.domain.shared.money import Money, default_currency
+from masms.use_cases.identity.guardians import is_guardian_or_self
 from masms.use_cases.shared.ports import UnitOfWork
 from masms.use_cases.shared.principal import Principal
 
@@ -59,13 +60,16 @@ async def require_student(uow: UnitOfWork, tenant_id: UUID, student_id: UUID) ->
     return user
 
 
-def may_see_student(actor: Principal, student_id: UUID) -> None:
-    """Finance staff see every student; a student sees only their own account."""
-    if actor.permissions.allows("invoices:read"):
+async def ensure_can_see(
+    uow: UnitOfWork, actor: Principal, student_id: UUID, *, staff_permission: str = "invoices:read"
+) -> None:
+    """Finance staff see every student. A student sees their own account, and a parent sees
+    the accounts of the children the school has linked to them."""
+    if actor.permissions.allows(staff_permission):
         return
-    if actor.user_id == student_id and actor.permissions.allows("fees:view"):
+    if actor.permissions.allows("fees:view") and await is_guardian_or_self(uow, actor, student_id):
         return
-    raise PermissionDenied("You can only see your own fees.")
+    raise PermissionDenied("You can only see your own family's fees.")
 
 
 def due_date(settings: FinanceSettings, today: date, given: date | None) -> date:

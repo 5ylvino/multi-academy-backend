@@ -21,6 +21,8 @@ dependencies = [
   "structlog>=24.4",
   "prometheus-client>=0.21",
   "aiosmtplib>=3.0",
+  "python-multipart>=0.0.34",
+  "httpx>=0.29.0",
 ]
 
 [dependency-groups]
@@ -76,6 +78,8 @@ filterwarnings = ["error::DeprecationWarning:masms.*"]
 [tool.coverage.run]
 source = ["masms"]
 branch = true
+# SQLAlchemy async runs I/O through greenlets; without this, code after an await is missed.
+concurrency = ["greenlet", "thread"]
 
 [tool.coverage.report]
 skip_covered = true

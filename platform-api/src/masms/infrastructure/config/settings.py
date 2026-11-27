@@ -5,7 +5,7 @@ from __future__ import annotations
 from enum import StrEnum
 from functools import lru_cache
 
-from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic import AliasChoices, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,7 +17,9 @@ class Environment(StrEnum):
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="MASMS_", env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_prefix="MASMS_", env_file=".env", extra="ignore", populate_by_name=True
+    )
 
     environment: Environment = Environment.DEVELOPMENT
     app_name: str = "MA-SMS Platform API"
@@ -78,6 +80,31 @@ class Settings(BaseSettings):
     smtp_password: SecretStr | None = None
     smtp_starttls: bool = True
 
+    # Private files (payment receipts, photos). Production uses Neon Object Storage, which is
+    # S3-compatible: endpoint, region and keys come from the branch's storage credential.
+    object_store: str = "local"  # "local" | "s3"
+    object_store_path: str = "./var/objects"
+    # The AWS_* names are what `neon env pull` writes, so Neon's values work unchanged.
+    object_store_endpoint: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MASMS_OBJECT_STORE_ENDPOINT", "AWS_ENDPOINT_URL_S3"),
+    )
+    object_store_region: str = Field(
+        default="us-east-2",
+        validation_alias=AliasChoices("MASMS_OBJECT_STORE_REGION", "AWS_REGION"),
+    )
+    object_store_bucket: str = "masms-private"
+    object_store_access_key_id: str | None = Field(
+        default=None,
+        validation_alias=AliasChoices("MASMS_OBJECT_STORE_ACCESS_KEY_ID", "AWS_ACCESS_KEY_ID"),
+    )
+    object_store_secret_access_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices(
+            "MASMS_OBJECT_STORE_SECRET_ACCESS_KEY", "AWS_SECRET_ACCESS_KEY"
+        ),
+    )
+
     metrics_enabled: bool = True
     docs_enabled: bool = True
 
@@ -110,6 +137,14 @@ class Settings(BaseSettings):
             problems.append("MASMS_TRUSTED_HOSTS must list real host names")
         if self.email_provider == "log":
             problems.append("MASMS_EMAIL_PROVIDER must be a real provider")
+        if self.object_store != "s3":
+            problems.append("MASMS_OBJECT_STORE must be s3 (Neon Object Storage)")
+        elif not (
+            self.object_store_endpoint
+            and self.object_store_access_key_id
+            and self.object_store_secret_access_key
+        ):
+            problems.append("MASMS_OBJECT_STORE_ENDPOINT and its access keys are required")
         if problems:
             raise ValueError("Unsafe production settings: " + "; ".join(problems))
         return self

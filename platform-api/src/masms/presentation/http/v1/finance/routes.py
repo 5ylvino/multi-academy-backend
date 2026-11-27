@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Header, Query, Response, status
+from fastapi import APIRouter, File, Form, Header, Query, Response, UploadFile, status
 
+from masms.domain.finance.proofs import MAX_FILE_BYTES
+from masms.domain.shared.errors import ValidationFailed
 from masms.presentation.http.dependencies.auth import SchoolPrincipal
 from masms.presentation.http.dependencies.context import UseCasesDep
 from masms.presentation.http.v1.finance.schemas import (
+    ApproveProofRequest,
     BillingRunRequest,
     BillingRunResponse,
     DecisionRequest,
@@ -21,6 +25,8 @@ from masms.presentation.http.v1.finance.schemas import (
     PaymentPage,
     PaymentRequest,
     PaymentResponse,
+    ProofPage,
+    ProofResponse,
     ReasonRequest,
     RefundRequest,
     RefundResponse,
@@ -32,8 +38,14 @@ from masms.presentation.http.v1.finance.schemas import (
     TrialBalanceResponse,
 )
 from masms.presentation.http.v1.schemas import PageMeta
-from masms.use_cases.finance.catalog import FeeItemCommand, ScholarshipCommand
+from masms.use_cases.finance.catalog import (
+    BankAccountView,
+    FeeItemCommand,
+    ScholarshipCommand,
+    UpdateSettingsCommand,
+)
 from masms.use_cases.finance.payments import RecordPaymentCommand
+from masms.use_cases.finance.proofs import SubmitProofCommand
 
 router = APIRouter(prefix="/finance", tags=["finance"])
 
@@ -66,7 +78,18 @@ async def update_settings(
     body: SettingsRequest, principal: SchoolPrincipal, uc: UseCasesDep
 ) -> SettingsResponse:
     view = await uc.finance_catalog.update_settings(
-        principal, currency=body.currency, default_due_days=body.default_due_days
+        principal,
+        UpdateSettingsCommand(
+            currency=body.currency,
+            default_due_days=body.default_due_days,
+            online_payments_enabled=body.online_payments_enabled,
+            payment_proofs_enabled=body.payment_proofs_enabled,
+            payment_instructions=body.payment_instructions,
+            bank_accounts=[
+                BankAccountView(a.bank_name, a.account_name, a.account_number)
+                for a in body.bank_accounts
+            ],
+        ),
     )
     return SettingsResponse.model_validate(view)
 
@@ -340,3 +363,114 @@ async def student_statement(
 @router.get("/ledger/trial-balance", response_model=TrialBalanceResponse)
 async def trial_balance(principal: SchoolPrincipal, uc: UseCasesDep) -> TrialBalanceResponse:
     return TrialBalanceResponse.model_validate(await uc.statements.trial_balance(principal))
+
+
+# ---- proof of payment (money paid to the school outside the platform) ---------------------
+
+
+async def _read_capped(upload: UploadFile) -> bytes:
+    """Read at most the size limit plus one byte, so a huge upload is refused cheaply."""
+    data = await upload.read(MAX_FILE_BYTES + 1)
+    if len(data) > MAX_FILE_BYTES:
+        raise ValidationFailed("Upload a file of up to 5 MB.", details={"field": "file"})
+    return data
+
+
+@router.post("/payment-proofs", response_model=ProofResponse, status_code=status.HTTP_201_CREATED)
+async def submit_payment_proof(
+    principal: SchoolPrincipal,
+    uc: UseCasesDep,
+    file: Annotated[UploadFile, File(description="PDF, PNG, JPEG or WebP, up to 5 MB")],
+    student_id: Annotated[UUID, Form()],
+    amount_minor: Annotated[int, Form(gt=0, le=10**12)],
+    method: Annotated[str, Form(max_length=16)],
+    paid_on: Annotated[date, Form()],
+    reference: Annotated[str, Form(min_length=1, max_length=120)],
+    payer_name: Annotated[str | None, Form(max_length=120)] = None,
+    note: Annotated[str | None, Form(max_length=500)] = None,
+    invoice_id: Annotated[UUID | None, Form()] = None,
+    currency: Annotated[str | None, Form(min_length=3, max_length=3)] = None,
+) -> ProofResponse:
+    view = await uc.payment_proofs.submit(
+        principal,
+        SubmitProofCommand(
+            student_id=student_id,
+            amount_minor=amount_minor,
+            currency=currency,
+            method=method,
+            paid_on=paid_on,
+            reference=reference,
+            payer_name=payer_name,
+            note=note,
+            invoice_id=invoice_id,
+            file_bytes=await _read_capped(file),
+        ),
+    )
+    return ProofResponse.model_validate(view)
+
+
+@router.get("/payment-proofs", response_model=ProofPage)
+async def list_payment_proofs(
+    principal: SchoolPrincipal,
+    uc: UseCasesDep,
+    status_filter: Annotated[str | None, Query(alias="status", max_length=20)] = None,
+    student_id: UUID | None = None,
+    cursor: CursorQuery = None,
+    limit: LimitQuery = 50,
+) -> ProofPage:
+    page = await uc.payment_proofs.list(
+        principal, status=status_filter, student_id=student_id, cursor=cursor, limit=limit
+    )
+    return ProofPage(
+        items=[ProofResponse.model_validate(p) for p in page.items],
+        page=PageMeta(next_cursor=page.next_cursor),
+    )
+
+
+@router.get("/payment-proofs/{proof_id}", response_model=ProofResponse)
+async def get_payment_proof(
+    proof_id: UUID, principal: SchoolPrincipal, uc: UseCasesDep
+) -> ProofResponse:
+    return ProofResponse.model_validate(await uc.payment_proofs.get(principal, proof_id))
+
+
+@router.get("/payment-proofs/{proof_id}/file", response_class=Response)
+async def download_payment_proof(
+    proof_id: UUID, principal: SchoolPrincipal, uc: UseCasesDep
+) -> Response:
+    """Always served as a download, never rendered inline, so a crafted file can't run."""
+    view = await uc.payment_proofs.file(principal, proof_id)
+    return Response(
+        content=view.content,
+        media_type=view.content_type,
+        headers={
+            "Content-Disposition": f'attachment; filename="{view.filename}"',
+            "Content-Security-Policy": "default-src 'none'; sandbox",
+            "Cache-Control": "private, no-store",
+        },
+    )
+
+
+@router.post("/payment-proofs/{proof_id}/approve", response_model=ProofResponse)
+async def approve_payment_proof(
+    proof_id: UUID, body: ApproveProofRequest, principal: SchoolPrincipal, uc: UseCasesDep
+) -> ProofResponse:
+    view = await uc.payment_proofs.approve(
+        principal, proof_id, amount_minor=body.amount_minor, note=body.note
+    )
+    return ProofResponse.model_validate(view)
+
+
+@router.post("/payment-proofs/{proof_id}/reject", response_model=ProofResponse)
+async def reject_payment_proof(
+    proof_id: UUID, body: ReasonRequest, principal: SchoolPrincipal, uc: UseCasesDep
+) -> ProofResponse:
+    view = await uc.payment_proofs.reject(principal, proof_id, reason=body.reason)
+    return ProofResponse.model_validate(view)
+
+
+@router.post("/payment-proofs/{proof_id}/withdraw", response_model=ProofResponse)
+async def withdraw_payment_proof(
+    proof_id: UUID, principal: SchoolPrincipal, uc: UseCasesDep
+) -> ProofResponse:
+    return ProofResponse.model_validate(await uc.payment_proofs.withdraw(principal, proof_id))

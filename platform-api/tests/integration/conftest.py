@@ -78,8 +78,10 @@ class Mailbox:
 
 
 @pytest.fixture
-def settings() -> Settings:
+def settings(tmp_path_factory: pytest.TempPathFactory) -> Settings:
     return Settings(
+        object_store="local",
+        object_store_path=str(tmp_path_factory.mktemp("objects")),
         environment=Environment.TEST,
         database_url=APP_URL,  # type: ignore[arg-type]
         redis_url=REDIS_URL,  # type: ignore[arg-type]

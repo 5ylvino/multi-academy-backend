@@ -107,7 +107,7 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET | `/api/v1/attendance/staff/kiosk-code` | `staff_attendance:view_all` (the gate screen) |
 | POST | `/api/v1/attendance/staff/check-in` | `staff_attendance:create` |
 | GET | `/api/v1/attendance/staff/register?date=`, `/staff/me` | `staff_attendance:view_all` / own history |
-| GET/PUT | `/api/v1/finance/settings` | `fees:view` / `fees:manage` (currency locks once invoices exist) |
+| GET/PUT | `/api/v1/finance/settings` | `fees:view` / `fees:manage`: currency, due days, how parents pay (online off by default, receipt uploads on), school bank accounts |
 | GET/POST/PUT | `/api/v1/finance/fee-items`, `/{id}`, `/{id}/retire`, `/{id}/restore` | `fee_structures:read` / `:create` / `:update` / `:delete` |
 | GET/POST | `/api/v1/finance/scholarships`, `/{id}/revoke` | `scholarships:manage` |
 | POST | `/api/v1/finance/billing-runs` | `invoices:create` (safe to repeat: one live term invoice per student) |
@@ -120,6 +120,12 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET/POST | `/api/v1/finance/refunds`, `/{id}/approve`, `/{id}/reject` | `refunds:process`, and not the person who asked |
 | GET | `/api/v1/finance/students/{id}/statement` | `invoices:read`, or the student |
 | GET | `/api/v1/finance/ledger/trial-balance` | `fees:manage` |
+| POST | `/api/v1/finance/payment-proofs` (multipart) | linked parent with `payments:process`, or `fees:manage` |
+| GET | `/api/v1/finance/payment-proofs`, `/{id}`, `/{id}/file` | `payments:view`; parents see their children's, uploaders their own |
+| POST | `/api/v1/finance/payment-proofs/{id}/approve`, `/reject` | `payments:process` + `fees:manage`, not the uploader |
+| POST | `/api/v1/finance/payment-proofs/{id}/withdraw` | the uploader, while waiting for review |
+| GET/POST/DELETE | `/api/v1/users/{student_id}/guardians`, `/{parent_id}` | `students:read` / `students:update` |
+| GET | `/api/v1/me/children` | parents |
 | GET | `/health/live`, `/health/ready`, `/metrics` | infrastructure |
 
 Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
@@ -134,6 +140,21 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
 - Every movement posts a balanced double-entry journal entry. Journal tables are append-only for
   the app role, and a deferred trigger rejects any entry that doesn't sum to zero.
 - Money changes for one student are serialised with a transaction-scoped advisory lock.
+- Paying through the platform is optional. Online payments stay off until the school connects a
+  gateway and turns them on. Parents can always be shown the school's bank accounts instead.
+- Proof of payment: a parent uploads the bank receipt (PDF, PNG, JPEG or WebP up to 5 MB, type
+  checked from the file's bytes). Nothing is credited until the bursar approves it, which records
+  an ordinary payment. The same bank reference or the same file can't be claimed twice. Files are
+  private, served only as downloads, and checked against their stored SHA-256.
+- Parents see and pay only for children the school has linked to them.
+
+## File storage
+
+Receipts and other private files go to Neon Object Storage, which speaks the S3 API. Put the
+branch's storage credential in `.env`: `neon env pull` writes `AWS_ENDPOINT_URL_S3`, `AWS_REGION`,
+`AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`, which are read as-is. Set `MASMS_OBJECT_STORE=s3`
+and `MASMS_OBJECT_STORE_BUCKET`. Development and tests use a local folder. Production refuses to
+start without S3 storage. Requests are signed with SigV4 and the body hash, path-style.
 
 ## Owner-console MFA
 

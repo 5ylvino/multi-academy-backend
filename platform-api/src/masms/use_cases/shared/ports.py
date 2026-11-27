@@ -13,6 +13,7 @@ from masms.domain.academics.repositories import AcademicsRepository
 from masms.domain.attendance.repositories import AttendanceRepository
 from masms.domain.finance.repositories import FinanceRepository
 from masms.domain.identity.repositories import (
+    GuardianRepository,
     InviteRepository,
     MfaRepository,
     RefreshSessionRepository,
@@ -59,6 +60,18 @@ class SecretGenerator(Protocol):
     def random_bytes(self, length: int) -> bytes: ...
 
     def code_from_alphabet(self, alphabet: str, length: int) -> str: ...
+
+
+class ObjectStore(Protocol):
+    """Private file storage (receipts, photos). Keys are chosen by the server, never the client."""
+
+    async def put(self, key: str, data: bytes, *, content_type: str) -> None: ...
+
+    async def get(self, key: str) -> bytes:
+        """Raises ``NotFound`` when the object does not exist."""
+        ...
+
+    async def delete(self, key: str) -> None: ...
 
 
 class SchoolTime(Protocol):
@@ -158,6 +171,9 @@ class UnitOfWork(Protocol):
 
     @property
     def mfa(self) -> MfaRepository: ...
+
+    @property
+    def guardians(self) -> GuardianRepository: ...
 
     @property
     def attendance(self) -> AttendanceRepository: ...

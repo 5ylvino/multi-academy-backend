@@ -11,6 +11,7 @@ from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from masms.domain.identity.guardians import GuardianLink, Relationship
 from masms.domain.identity.invite import UserInvite
 from masms.domain.identity.mfa import TotpFactor
 from masms.domain.identity.roles import Realm
@@ -20,6 +21,7 @@ from masms.domain.shared.errors import Conflict, ValidationFailed
 from masms.domain.shared.value_objects import EmailAddress, Page
 from masms.infrastructure.persistence.models.identity import (
     AuthSessionRow,
+    GuardianLinkRow,
     PlatformMfaFactorRow,
     PlatformUserRow,
     SchoolUserRow,
@@ -375,3 +377,80 @@ class SqlMfaRepository:
         await self._s.execute(
             sa_delete(PlatformMfaFactorRow).where(PlatformMfaFactorRow.user_id == user_id)
         )
+
+
+def _link(row: GuardianLinkRow) -> GuardianLink:
+    return GuardianLink(
+        tenant_id=row.tenant_id,
+        parent_id=row.parent_id,
+        student_id=row.student_id,
+        relationship=Relationship(row.relationship),
+        created_by=row.created_by,
+        created_at=row.created_at,
+    )
+
+
+class SqlGuardianRepository:
+    def __init__(self, session: AsyncSession, scope: ScopeState) -> None:
+        self._s = session
+        self._scope = scope
+
+    @property
+    def _tid(self) -> UUID:
+        if self._scope.tenant_id is None:
+            raise RuntimeError("Guardian links need a tenant scope.")
+        return self._scope.tenant_id
+
+    async def add(self, link: GuardianLink) -> bool:
+        stmt = (
+            pg_insert(GuardianLinkRow)
+            .values(
+                tenant_id=self._tid,
+                parent_id=link.parent_id,
+                student_id=link.student_id,
+                relationship=link.relationship.value,
+                created_by=link.created_by,
+                created_at=link.created_at,
+            )
+            .on_conflict_do_nothing()
+            .returning(GuardianLinkRow.parent_id)
+        )
+        return (await self._s.execute(stmt)).first() is not None
+
+    async def remove(self, parent_id: UUID, student_id: UUID) -> bool:
+        result = await self._s.execute(
+            sa_delete(GuardianLinkRow)
+            .where(
+                GuardianLinkRow.tenant_id == self._tid,
+                GuardianLinkRow.parent_id == parent_id,
+                GuardianLinkRow.student_id == student_id,
+            )
+            .returning(GuardianLinkRow.parent_id)
+        )
+        return result.first() is not None
+
+    async def guardians_of(self, student_id: UUID) -> list[GuardianLink]:
+        rows = await self._s.scalars(
+            select(GuardianLinkRow)
+            .where(GuardianLinkRow.tenant_id == self._tid, GuardianLinkRow.student_id == student_id)
+            .order_by(GuardianLinkRow.created_at)
+        )
+        return [_link(r) for r in rows]
+
+    async def children_of(self, parent_id: UUID) -> list[GuardianLink]:
+        rows = await self._s.scalars(
+            select(GuardianLinkRow)
+            .where(GuardianLinkRow.tenant_id == self._tid, GuardianLinkRow.parent_id == parent_id)
+            .order_by(GuardianLinkRow.created_at)
+        )
+        return [_link(r) for r in rows]
+
+    async def is_guardian(self, parent_id: UUID, student_id: UUID) -> bool:
+        found = await self._s.scalar(
+            select(GuardianLinkRow.parent_id).where(
+                GuardianLinkRow.tenant_id == self._tid,
+                GuardianLinkRow.parent_id == parent_id,
+                GuardianLinkRow.student_id == student_id,
+            )
+        )
+        return found is not None

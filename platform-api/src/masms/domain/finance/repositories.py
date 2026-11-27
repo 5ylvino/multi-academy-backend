@@ -10,6 +10,7 @@ from masms.domain.finance.billing import Invoice, InvoiceStatus, Scholarship
 from masms.domain.finance.catalog import FeeItem, FinanceSettings
 from masms.domain.finance.ledger import Account, JournalEntry, StudentBalance
 from masms.domain.finance.payments import Allocation, Payment, Refund, RefundStatus
+from masms.domain.finance.proofs import PaymentProof, ProofStatus
 from masms.domain.shared.value_objects import Page
 
 
@@ -121,6 +122,32 @@ class FinanceRepository(Protocol):
     async def list_refunds(self, *, status: RefundStatus | None, limit: int) -> list[Refund]: ...
 
     async def refunds_of_student(self, student_id: UUID) -> list[Refund]: ...
+
+    async def payment_reference_exists(self, reference_key: str) -> bool:
+        """A live payment already carries this bank reference (normalised)."""
+        ...
+
+    # proofs of payment
+    async def add_proof(self, proof: PaymentProof) -> None:
+        """Raises Conflict when an open or approved proof has the same reference or file."""
+        ...
+
+    async def get_proof(
+        self, proof_id: UUID, *, for_update: bool = False
+    ) -> PaymentProof | None: ...
+
+    async def save_proof(self, proof: PaymentProof) -> None: ...
+
+    async def open_proofs_for_student(self, student_id: UUID) -> int: ...
+
+    async def list_proofs(
+        self,
+        *,
+        status: ProofStatus | None,
+        student_ids: list[UUID] | None,
+        cursor: str | None,
+        limit: int,
+    ) -> Page[PaymentProof]: ...
 
     # ledger
     async def post(self, entry: JournalEntry) -> None: ...

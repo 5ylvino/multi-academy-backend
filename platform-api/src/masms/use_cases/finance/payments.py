@@ -15,14 +15,14 @@ from masms.domain.finance.payments import (
     parse_method,
 )
 from masms.domain.identity.roles import Realm
-from masms.domain.shared.errors import Conflict, NotFound, ValidationFailed
+from masms.domain.shared.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from masms.domain.shared.money import Money
 from masms.domain.shared.value_objects import Page
 from masms.use_cases.finance.common import (
     MoneyView,
     check_currency,
+    ensure_can_see,
     load_settings,
-    may_see_student,
     post_payment,
     post_refund,
     release,
@@ -308,11 +308,14 @@ class Payments:
         actor.require_realm(Realm.SCHOOL)
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
             payment = await uow.finance.get_payment(payment_id)
-            if payment is None or not (
-                actor.permissions.allows("payments:view")
-                or (actor.user_id == payment.student_id and actor.permissions.allows("fees:view"))
-            ):
+            if payment is None:
                 raise NotFound("Payment not found.")
+            try:
+                await ensure_can_see(
+                    uow, actor, payment.student_id, staff_permission="payments:view"
+                )
+            except PermissionDenied as exc:
+                raise NotFound("Payment not found.") from exc
             allocations = await _allocations(uow, payment.id)
         return PaymentView.of(payment, allocations)
 
@@ -320,10 +323,10 @@ class Payments:
         self, actor: Principal, *, student_id: UUID | None, cursor: str | None, limit: int
     ) -> Page[PaymentView]:
         actor.require_realm(Realm.SCHOOL)
-        if not actor.permissions.allows("payments:view"):
-            may_see_student(actor, student_id or actor.user_id)
-            student_id = actor.user_id
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
+            if not actor.permissions.allows("payments:view"):
+                student_id = student_id or actor.user_id
+                await ensure_can_see(uow, actor, student_id, staff_permission="payments:view")
             page = await uow.finance.list_payments(
                 student_id=student_id, cursor=cursor, limit=max(1, min(limit, 100))
             )

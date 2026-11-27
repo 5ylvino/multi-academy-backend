@@ -15,7 +15,7 @@ from masms.infrastructure.config.settings import Settings, get_settings
 from masms.infrastructure.container import Container, build_container
 from masms.infrastructure.observability.logging import configure_logging
 from masms.presentation.http.errors import install_error_handlers
-from masms.presentation.http.middleware import RequestContextMiddleware
+from masms.presentation.http.middleware import BodySizeLimitMiddleware, RequestContextMiddleware
 from masms.presentation.http.v1.router import api_router
 from masms.presentation.http.v1.system.routes import router as system_router
 
@@ -56,6 +56,9 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
         )
     app.add_middleware(GZipMiddleware, minimum_size=1024)
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=settings.trusted_hosts)
+    app.add_middleware(
+        BodySizeLimitMiddleware, default_limit=2 * 1024 * 1024, upload_limit=6 * 1024 * 1024
+    )
     app.add_middleware(RequestContextMiddleware, metrics_enabled=settings.metrics_enabled)
 
     app.include_router(system_router)

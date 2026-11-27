@@ -177,7 +177,9 @@ async def test_term_billing_payments_credit_and_refunds(
     b, d = sc["bursar"], sc["director"]
 
     settings = await client.get(f"{FIN}/settings", headers=bearer(b))
-    assert settings.json() == {"currency": "NGN", "default_due_days": 14, "currency_locked": False}
+    assert settings.json()["currency"] == "NGN"
+    assert settings.json()["default_due_days"] == 14
+    assert settings.json()["currency_locked"] is False
 
     await _fee(client, b, name="Tuition", amount_minor=10_000_000, school_level="primary")
     await _fee(client, b, name="Senior tuition", amount_minor=15_000_000, school_level="secondary")

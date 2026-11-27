@@ -28,18 +28,81 @@ def _name(value: str, field_name: str = "name", max_len: int = 120) -> str:
     return clean
 
 
+MAX_BANK_ACCOUNTS = 5
+MAX_INSTRUCTIONS = 1000
+
+
+@dataclass(frozen=True, slots=True)
+class BankAccount:
+    """Where parents pay school fees directly. Shown to parents beside their invoices."""
+
+    bank_name: str
+    account_name: str
+    account_number: str
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "bank_name", _name(self.bank_name, "bank_name", 80))
+        object.__setattr__(self, "account_name", _name(self.account_name, "account_name", 120))
+        number = "".join(self.account_number.split())
+        if not 4 <= len(number) <= 34 or not number.isalnum():
+            raise ValidationFailed(
+                "Enter a valid account number.", details={"field": "account_number"}
+            )
+        object.__setattr__(self, "account_number", number)
+
+
 @dataclass(kw_only=True, eq=False)
 class FinanceSettings(Entity):
-    """One row per school. ``id`` equals ``tenant_id``."""
+    """One row per school. ``id`` equals ``tenant_id``.
+
+    How parents may pay is the school's choice. Many schools collect fees outside the platform
+    (bank transfer, cash at the bursary), so online payments are off until the school turns them
+    on, while uploading proof of an outside payment is on by default.
+    """
 
     tenant_id: UUID
     currency: str
     default_due_days: int = 14
+    online_payments_enabled: bool = False
+    payment_proofs_enabled: bool = True
+    payment_instructions: str | None = None
+    bank_accounts: tuple[BankAccount, ...] = ()
     version: int = 0
 
     @classmethod
     def defaults(cls, tenant_id: UUID, currency: str) -> FinanceSettings:
         return cls(id=tenant_id, tenant_id=tenant_id, currency=currency_code(currency))
+
+    def set_payment_options(
+        self,
+        *,
+        online_payments_enabled: bool,
+        payment_proofs_enabled: bool,
+        payment_instructions: str | None,
+        bank_accounts: list[BankAccount],
+        gateway_ready: bool,
+    ) -> None:
+        if online_payments_enabled and not gateway_ready:
+            raise ValidationFailed(
+                "Connect a payment gateway before turning on online payments.",
+                code="gateway_not_configured",
+                details={"field": "online_payments_enabled"},
+            )
+        if len(bank_accounts) > MAX_BANK_ACCOUNTS:
+            raise ValidationFailed(
+                f"List at most {MAX_BANK_ACCOUNTS} bank accounts.",
+                details={"field": "bank_accounts"},
+            )
+        text = (payment_instructions or "").strip()
+        if len(text) > MAX_INSTRUCTIONS:
+            raise ValidationFailed(
+                "Keep the payment instructions under 1000 characters.",
+                details={"field": "payment_instructions"},
+            )
+        self.online_payments_enabled = online_payments_enabled
+        self.payment_proofs_enabled = payment_proofs_enabled
+        self.payment_instructions = text or None
+        self.bank_accounts = tuple(bank_accounts)
 
     def update(self, *, currency: str, default_due_days: int, currency_locked: bool) -> None:
         code = currency_code(currency)
