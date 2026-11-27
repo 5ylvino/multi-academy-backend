@@ -11,6 +11,7 @@ from uuid import UUID
 
 from app.domain.academics.repositories import AcademicsRepository
 from app.domain.attendance.repositories import AttendanceRepository
+from app.domain.communication.repositories import CommunicationRepository
 from app.domain.finance.repositories import (
     FinanceRepository,
     OnlinePaymentRepository,
@@ -332,6 +333,9 @@ class UnitOfWork(Protocol):
 
     @property
     def payroll(self) -> PayrollRepository: ...
+
+    @property
+    def communication(self) -> CommunicationRepository: ...
 
     @property
     def audit_log(self) -> AuditLogRepository: ...

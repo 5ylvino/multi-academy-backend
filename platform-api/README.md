@@ -143,6 +143,10 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | POST | `/api/v1/payroll/runs/{id}/approve` | `pay_runs:approve` (not the preparer); also needed to cancel an approved run |
 | POST | `/api/v1/payroll/runs/{id}/void` | `payroll:manage` for drafts |
 | GET | `/api/v1/payroll/my-payslips` | any staff member, their own approved and paid payslips |
+| GET | `/api/v1/announcements`, `/{id}` | anyone in the audience (opening records the read) |
+| POST/PUT | `/api/v1/announcements`, `/{id}`, `/{id}/withdraw`; GET `/announcements/manage` | `announcements:create` (teachers: their classes only; `announcements:school_wide` for everyone); urgent needs `emergency:send` |
+| GET/POST | `/api/v1/conversations`, `/{id}`, `/{id}/messages` | participants; `correspondence:manage` to start; `conversations:oversee` to review |
+| GET/POST | `/api/v1/notifications`, `/unread`, `/read` | the signed-in person |
 | GET | `/api/v1/subscription`, `/subscription/invoices` | `organization:view`: the school's plan and platform invoices |
 | POST | `/api/v1/subscription/invoices/{id}/pay`, `/confirm` | `organization:update` / `organization:view` |
 | GET/POST | `/api/v1/platform-invoices/{id}`, `/pay`, `/confirm` `?token=` | anyone with the emailed pay link (works while suspended) |
@@ -223,6 +227,26 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
   amounts in the email). Approvers can cancel an approved, unpaid run; the accrual is reversed.
 - `payroll:manage` doesn't imply `pay_runs:approve`: approval is its own resource on purpose,
   since `<resource>:manage` grants every action on that resource.
+
+## Communication
+
+- **Announcements** go to a set of roles and, optionally, classes ("parents and students of
+  P3"). Visibility is worked out when the feed is read, from the person's roles and the classes
+  they belong to this session (as a student, through a child, or by teaching it). Leaders
+  (`announcements:school_wide`) can announce to anyone; teachers only to classes they teach.
+  Announcements can be pinned, scheduled up to 120 days ahead and given an end date. Opening one
+  records the read; publishers see read counts. Withdrawn ones stay on record with the reason.
+- **Urgent** announcements (`emergency:send`) publish at once, can't be scheduled, keep their
+  audience once sent, and are emailed to everyone in it by the worker
+  (`communication.urgent_announcement`).
+- **Conversations**: staff with `correspondence:manage` talk to staff and parents; parents talk
+  to staff only, and only about their own children; students can't be added. Messages are
+  append-only for the app role (never edited or deleted). Leaders with `conversations:oversee`
+  can read any conversation; each review is in the activity log. Rate limits: 20 new
+  conversations an hour and 30 messages a minute per person.
+- **Inbox**: each new message gives the other participants one notice per conversation (later
+  messages refresh it rather than stacking up); opening the conversation clears it.
+  `/notifications/unread` gives the badge counts for notices and announcements.
 
 ## Online payments (Paystack)
 

@@ -17,6 +17,7 @@ class AuditCategory(StrEnum):
     SCHOOL = "school"
     PLATFORM = "platform"
     AUDIT = "audit"
+    COMMUNICATION = "communication"
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,6 +36,7 @@ _S, _P, _A, _T, _F, _SC, _PL, _AU = (
     AuditCategory.PLATFORM,
     AuditCategory.AUDIT,
 )
+_C = AuditCategory.COMMUNICATION
 
 ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
     {
@@ -130,6 +132,14 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "payroll.run_paid": ActionInfo("Marked a pay run as paid", _F),
         "payroll.run_voided": ActionInfo("Cancelled a pay run", _F),
         "payroll.bank_schedule_exported": ActionInfo("Downloaded a bank payment schedule", _F),
+        # Communication
+        "communication.announcement_published": ActionInfo("Published an announcement", _C),
+        "communication.announcement_edited": ActionInfo("Edited an announcement", _C),
+        "communication.announcement_withdrawn": ActionInfo("Withdrew an announcement", _C),
+        "communication.conversation_started": ActionInfo("Started a conversation", _C),
+        "communication.conversation_reviewed": ActionInfo(
+            "Reviewed a conversation they are not in", _C
+        ),
         # School account
         "tenant.registered": ActionInfo("Signed up the school", _SC),
         "tenant.email_verified": ActionInfo("Confirmed the school's email", _SC),

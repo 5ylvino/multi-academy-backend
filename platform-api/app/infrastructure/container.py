@@ -36,6 +36,9 @@ from app.use_cases.academics.structure import AcademicCalendar, ClassesAndSubjec
 from app.use_cases.attendance.registers import StudentRegisters
 from app.use_cases.attendance.staff import StaffAttendance
 from app.use_cases.audit.trail import AuditTrail
+from app.use_cases.communication.alerts import SendUrgentAnnouncement
+from app.use_cases.communication.announcements import Announcements
+from app.use_cases.communication.conversations import Conversations
 from app.use_cases.finance.billing import Billing
 from app.use_cases.finance.catalog import FinanceCatalog
 from app.use_cases.finance.online import OnlinePayments
@@ -149,6 +152,8 @@ class UseCases:
     spending: Spending
     inventory: Inventory
     payroll: Payroll
+    announcements: Announcements
+    conversations: Conversations
 
 
 @dataclass
@@ -466,6 +471,8 @@ def build_container(
         platform_billing=platform_billing,
         inventory=Inventory(uow_factory=uow, clock=clock),
         payroll=Payroll(uow_factory=uow, clock=clock, school_time=school_time, box=secret_box),
+        announcements=Announcements(uow_factory=uow, clock=clock),
+        conversations=Conversations(uow_factory=uow, clock=clock, limiter=limiter),
         spending=Spending(
             uow_factory=uow, clock=clock, school_time=school_time, store=object_store
         ),
@@ -492,6 +499,9 @@ def build_container(
         handlers[name] = [invoice_email]
     handlers["payroll.run_paid"] = [
         SendPayslipReadyEmails(email=email, uow_factory=uow, school_app_url=settings.school_app_url)
+    ]
+    handlers["communication.urgent_announcement"] = [
+        SendUrgentAnnouncement(email=email, uow_factory=uow, school_app_url=settings.school_app_url)
     ]
     outbox = OutboxRelay(session_factory, handlers)
     return Container(

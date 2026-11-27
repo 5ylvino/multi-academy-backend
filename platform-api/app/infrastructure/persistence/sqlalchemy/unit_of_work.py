@@ -18,6 +18,9 @@ from app.infrastructure.persistence.models.system import AuditEventRow, OutboxEv
 from app.infrastructure.persistence.repositories.academics import SqlAcademicsRepository
 from app.infrastructure.persistence.repositories.attendance import SqlAttendanceRepository
 from app.infrastructure.persistence.repositories.audit import SqlAuditLogRepository
+from app.infrastructure.persistence.repositories.communication import (
+    SqlCommunicationRepository,
+)
 from app.infrastructure.persistence.repositories.finance import SqlFinanceRepository
 from app.infrastructure.persistence.repositories.identity import (
     SqlGuardianRepository,
@@ -95,6 +98,7 @@ class SqlAlchemyUnitOfWork:
         self.spending = SqlSpendingRepository(s, self._scope)
         self.inventory = SqlInventoryRepository(s, self._scope)
         self.payroll = SqlPayrollRepository(s, self._scope)
+        self.communication = SqlCommunicationRepository(s, self._scope)
         return self
 
     async def __aexit__(

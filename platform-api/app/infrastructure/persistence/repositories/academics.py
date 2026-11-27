@@ -340,6 +340,28 @@ class SqlAcademicsRepository:
         )
         return result
 
+    async def classes_of_students(self, student_ids: set[UUID], session_id: UUID) -> set[UUID]:
+        if not student_ids:
+            return set()
+        rows = await self._s.scalars(
+            select(EnrolmentRow.class_id).where(
+                EnrolmentRow.tenant_id == self._tid,
+                EnrolmentRow.student_id.in_(sorted(student_ids)),
+                EnrolmentRow.session_id == session_id,
+                EnrolmentRow.status == EnrolmentStatus.ACTIVE.value,
+            )
+        )
+        return set(rows)
+
+    async def classes_taught_by(self, teacher_id: UUID) -> set[UUID]:
+        homeroom = select(SchoolClassRow.id).where(
+            SchoolClassRow.tenant_id == self._tid, SchoolClassRow.class_teacher_id == teacher_id
+        )
+        subject = select(ClassSubjectRow.class_id).where(
+            ClassSubjectRow.tenant_id == self._tid, ClassSubjectRow.teacher_id == teacher_id
+        )
+        return set(await self._s.scalars(homeroom.union(subject)))
+
     # enrolments
     async def add_enrolment(self, enrolment: Enrolment) -> None:
         self._s.add(
