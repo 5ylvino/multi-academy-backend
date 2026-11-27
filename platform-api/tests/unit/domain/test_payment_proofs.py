@@ -7,9 +7,9 @@ from uuid import uuid4
 
 import pytest
 
-from masms.domain.finance.catalog import BankAccount, FinanceSettings
-from masms.domain.finance.payments import PaymentMethod
-from masms.domain.finance.proofs import (
+from app.domain.finance.catalog import BankAccount, FinanceSettings
+from app.domain.finance.payments import PaymentMethod
+from app.domain.finance.proofs import (
     MAX_FILE_BYTES,
     PaymentProof,
     ProofFile,
@@ -18,16 +18,16 @@ from masms.domain.finance.proofs import (
     detect_receipt_type,
     normalise_reference,
 )
-from masms.domain.identity.guardians import GuardianLink, Relationship, parse_relationship
-from masms.domain.identity.roles import Realm
-from masms.domain.identity.user import UserAccount
-from masms.domain.shared.errors import (
+from app.domain.identity.guardians import GuardianLink, Relationship, parse_relationship
+from app.domain.identity.roles import Realm
+from app.domain.identity.user import UserAccount
+from app.domain.shared.errors import (
     InvalidStateTransition,
     PermissionDenied,
     ValidationFailed,
 )
-from masms.domain.shared.money import Money
-from masms.domain.shared.value_objects import EmailAddress
+from app.domain.shared.money import Money
+from app.domain.shared.value_objects import EmailAddress
 
 NOW = datetime(2026, 11, 27, 9, 0, tzinfo=UTC)
 TODAY = NOW.date()

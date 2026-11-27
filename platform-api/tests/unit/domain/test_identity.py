@@ -4,13 +4,13 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from masms.domain.identity.password_policy import validate_password
-from masms.domain.identity.roles import Realm
-from masms.domain.identity.session import RefreshSession
-from masms.domain.identity.user import LoginPolicy, UserAccount, UserStatus
-from masms.domain.shared.errors import AccountLocked, AuthenticationFailed, ValidationFailed
-from masms.domain.shared.ids import new_id
-from masms.domain.shared.value_objects import EmailAddress
+from app.domain.identity.password_policy import validate_password
+from app.domain.identity.roles import Realm
+from app.domain.identity.session import RefreshSession
+from app.domain.identity.user import LoginPolicy, UserAccount, UserStatus
+from app.domain.shared.errors import AccountLocked, AuthenticationFailed, ValidationFailed
+from app.domain.shared.ids import new_id
+from app.domain.shared.value_objects import EmailAddress
 
 NOW = datetime(2026, 11, 27, 12, tzinfo=UTC)
 

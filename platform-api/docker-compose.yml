@@ -47,7 +47,7 @@ services:
 
   worker:
     build: .
-    command: ["python", "-m", "masms.presentation.workers.outbox"]
+    command: ["python", "-m", "app.presentation.workers.outbox"]
     env_file: [.env]
     environment:
       MASMS_ENVIRONMENT: development

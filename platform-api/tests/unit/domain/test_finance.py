@@ -7,7 +7,7 @@ from uuid import uuid4
 
 import pytest
 
-from masms.domain.finance.billing import (
+from app.domain.finance.billing import (
     Invoice,
     InvoiceKind,
     InvoiceLine,
@@ -15,9 +15,9 @@ from masms.domain.finance.billing import (
     Scholarship,
     ScholarshipKind,
 )
-from masms.domain.finance.catalog import FeeItem, FinanceSettings
-from masms.domain.finance.ledger import Account, EntryKind, JournalEntry, JournalLine
-from masms.domain.finance.payments import (
+from app.domain.finance.catalog import FeeItem, FinanceSettings
+from app.domain.finance.ledger import Account, EntryKind, JournalEntry, JournalLine
+from app.domain.finance.payments import (
     Payment,
     PaymentMethod,
     Refund,
@@ -25,12 +25,12 @@ from masms.domain.finance.payments import (
     parse_method,
     plan_settlement,
 )
-from masms.domain.shared.errors import (
+from app.domain.shared.errors import (
     InvalidStateTransition,
     PermissionDenied,
     ValidationFailed,
 )
-from masms.domain.shared.money import Money, default_currency
+from app.domain.shared.money import Money, default_currency
 
 NOW = datetime(2026, 11, 27, 9, 0, tzinfo=UTC)
 TODAY = NOW.date()

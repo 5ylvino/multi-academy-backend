@@ -5,7 +5,7 @@ from __future__ import annotations
 import httpx
 import pytest
 
-from masms.infrastructure.container import Container
+from app.infrastructure.container import Container
 from tests.integration.conftest import Mailbox
 from tests.integration.helpers import bearer, register_and_verify
 

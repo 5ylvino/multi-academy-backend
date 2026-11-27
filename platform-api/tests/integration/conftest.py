@@ -20,10 +20,10 @@ import httpx
 import pytest
 from redis.asyncio import Redis
 
-from masms.infrastructure.config.settings import Environment, Settings
-from masms.infrastructure.container import Container, build_container
-from masms.infrastructure.messaging.outbox_relay import OutboxRelay
-from masms.presentation.http.app import create_app
+from app.infrastructure.config.settings import Environment, Settings
+from app.infrastructure.container import Container, build_container
+from app.infrastructure.messaging.outbox_relay import OutboxRelay
+from app.presentation.http.app import create_app
 
 APP_URL = os.environ.get("TEST_DATABASE_URL")
 OWNER_URL = os.environ.get("TEST_MIGRATION_DATABASE_URL")

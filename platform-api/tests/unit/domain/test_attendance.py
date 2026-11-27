@@ -5,20 +5,20 @@ from uuid import uuid4
 
 import pytest
 
-from masms.domain.attendance.register import (
+from app.domain.attendance.register import (
     AttendanceStatus,
     AttendanceSummary,
     StudentMark,
     ensure_markable_day,
     parse_status,
 )
-from masms.domain.attendance.staff import (
+from app.domain.attendance.staff import (
     AttendanceSettings,
     CheckInStatus,
     Site,
     StaffDayStatus,
 )
-from masms.domain.shared.errors import ValidationFailed
+from app.domain.shared.errors import ValidationFailed
 
 LAGOS_CAMPUS = Site(name="Main campus", latitude=6.5244, longitude=3.3792, radius_m=150)
 

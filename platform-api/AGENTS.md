@@ -2,8 +2,8 @@
 
 You are a senior software engineer. This is the single FastAPI server replacing the old services.
 
-- Keep the four layers: `domain`, `use_cases`, `infrastructure`, `presentation`, with one folder per
-  feature inside each. New code goes in the matching feature folder of the right layer.
+- Keep the four layers under `app/`: `domain`, `use_cases`, `infrastructure`, `presentation`, with
+  one folder per feature inside each. New code goes in the matching feature folder of the right layer.
 - `domain` has no framework imports. `use_cases` talk to the outside only through ports in
   `use_cases/shared/ports.py` or `domain/<feature>/repositories.py`. Wire adapters in
   `infrastructure/container.py` only.

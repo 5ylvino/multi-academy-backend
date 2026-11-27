@@ -10,11 +10,13 @@ Clean architecture in four layers. Dependencies point inward only, and CI enforc
 (`uv run lint-imports`).
 
 ```text
-src/masms/
-  domain/          business rules: entities, value objects, events, repository ports
-  use_cases/       one class per action; ports for hashing, tokens, cache, email, unit of work
-  infrastructure/  adapters: PostgreSQL (SQLAlchemy), Redis, JWT, Argon2, SMTP, outbox, container
-  presentation/    HTTP API (FastAPI), background workers, admin CLI
+platform-api/
+  app/
+    domain/          business rules: entities, value objects, events, repository ports
+    use_cases/       one class per action; ports for hashing, tokens, cache, email, unit of work
+    infrastructure/  adapters: PostgreSQL (SQLAlchemy), Redis, JWT, Argon2, SMTP, outbox, container
+    presentation/    HTTP API (FastAPI), background workers, admin CLI
+  tests/             unit (no I/O) and integration (real PostgreSQL and Redis)
 ```
 
 Inside each layer there is one folder per feature (`identity`, `tenancy`, `platform`, ...).
@@ -42,9 +44,9 @@ uv sync
 cp .env.example .env
 docker compose up -d postgres redis
 MASMS_MIGRATION_DATABASE_URL=postgresql+asyncpg://masms_owner:owner@localhost:5432/masms uv run alembic upgrade head
-uv run python -m masms.presentation.http            # API on :8000, docs at /docs
-uv run python -m masms.presentation.workers.outbox  # delivers emails and other events
-uv run python -m masms.presentation.cli create-platform-user --email you@mas.ng --name "You" --role owner
+uv run python -m app.presentation.http            # API on :8000, docs at /docs
+uv run python -m app.presentation.workers.outbox  # delivers emails and other events
+uv run python -m app.presentation.cli create-platform-user --email you@mas.ng --name "You" --role owner
 ```
 
 Or everything in containers: `docker compose up --build`.
@@ -54,13 +56,13 @@ Or everything in containers: `docker compose up --build`.
 | Role | Command | Scale on |
 | --- | --- | --- |
 | api | default `CMD` (uvicorn) | CPU and p95 latency |
-| worker | `python -m masms.presentation.workers.outbox` | outbox backlog |
+| worker | `python -m app.presentation.workers.outbox` | outbox backlog |
 | migrate | `alembic upgrade head` | runs once per release |
 
 ## Checks
 
 ```bash
-uv run ruff format --check src tests && uv run ruff check src tests
+uv run ruff format --check app tests && uv run ruff check app tests
 uv run mypy
 uv run lint-imports
 # Integration tests need Postgres + Redis:
@@ -170,5 +172,5 @@ Every console account must use an authenticator app; there is no session from a 
 Seeds are AES-256-GCM encrypted with `MASMS_DATA_KEYS` (rotate by adding a key id and moving
 `MASMS_DATA_KEY_ID`). Codes can't be replayed, and wrong codes count toward account lockout.
 A lost phone is reset by another admin, or on the server with
-`python -m masms.presentation.cli reset-platform-mfa --email E`.
+`python -m app.presentation.cli reset-platform-mfa --email E`.
 

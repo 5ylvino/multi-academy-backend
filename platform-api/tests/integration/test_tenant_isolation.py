@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncpg
 import pytest
 
-from masms.infrastructure.persistence.models import academics as _academics  # noqa: F401
-from masms.infrastructure.persistence.sqlalchemy.base import (
+from app.infrastructure.persistence.models import academics as _academics  # noqa: F401
+from app.infrastructure.persistence.sqlalchemy.base import (
     TENANT_REGISTRY_TABLES,
     TENANT_SCOPED_TABLES,
     Base,

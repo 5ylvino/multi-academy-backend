@@ -4,10 +4,10 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-from masms.domain.shared.errors import InvalidStateTransition, TenantUnavailable, ValidationFailed
-from masms.domain.shared.value_objects import Slug
-from masms.domain.tenancy.events import TenantRegistered, TenantStatusChanged
-from masms.domain.tenancy.tenant import SchoolLevel, Tenant, TenantStatus
+from app.domain.shared.errors import InvalidStateTransition, TenantUnavailable, ValidationFailed
+from app.domain.shared.value_objects import Slug
+from app.domain.tenancy.events import TenantRegistered, TenantStatusChanged
+from app.domain.tenancy.tenant import SchoolLevel, Tenant, TenantStatus
 
 NOW = datetime(2026, 11, 27, tzinfo=UTC)
 

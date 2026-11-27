@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from masms.domain.identity.permissions import (
+from app.domain.identity.permissions import (
     PermissionSet,
     parse_school_roles,
     validate_custom_capabilities,
 )
-from masms.domain.identity.roles import PlatformRole, SchoolRole
-from masms.domain.identity.school_catalog import ROLE_ONLY_CAPABILITIES, SCHOOL_ROLE_PERMISSIONS
-from masms.domain.shared.errors import ValidationFailed
+from app.domain.identity.roles import PlatformRole, SchoolRole
+from app.domain.identity.school_catalog import ROLE_ONLY_CAPABILITIES, SCHOOL_ROLE_PERMISSIONS
+from app.domain.shared.errors import ValidationFailed
 
 
 def test_every_school_role_has_a_catalog_entry() -> None:

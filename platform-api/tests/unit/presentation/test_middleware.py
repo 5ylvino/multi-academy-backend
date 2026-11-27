@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 
-from masms.presentation.http.middleware import _route_template
+from app.presentation.http.middleware import _route_template
 
 
 class _Route:

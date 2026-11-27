@@ -8,10 +8,10 @@ from pathlib import Path
 import httpx
 import pytest
 
-from masms.domain.shared.errors import NotFound
-from masms.infrastructure.storage.local import LocalObjectStore
-from masms.infrastructure.storage.s3 import S3ObjectStore, StorageError
-from masms.infrastructure.storage.sigv4 import EMPTY_SHA256, sign
+from app.domain.shared.errors import NotFound
+from app.infrastructure.storage.local import LocalObjectStore
+from app.infrastructure.storage.s3 import S3ObjectStore, StorageError
+from app.infrastructure.storage.sigv4 import EMPTY_SHA256, sign
 
 # From the AWS S3 documentation, "Signature Calculations for the Authorization Header".
 KEY = "AKIAIOSFODNN7EXAMPLE"

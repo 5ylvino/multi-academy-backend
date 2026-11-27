@@ -8,7 +8,7 @@ from typing import Any
 import httpx
 import pytest
 
-from masms.infrastructure.container import Container
+from app.infrastructure.container import Container
 from tests.integration.conftest import Mailbox
 from tests.integration.helpers import bearer
 from tests.integration.test_finance_flows import FIN, _fee, _member, _school, _statement, _today

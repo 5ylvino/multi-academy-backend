@@ -5,9 +5,9 @@ from typing import Any
 import pytest
 from pydantic import SecretStr
 
-from masms.infrastructure.config.settings import Environment, Settings
-from masms.infrastructure.security.secret_box import generate_key
-from masms.infrastructure.security.tokens import generate_private_key_pem
+from app.infrastructure.config.settings import Environment, Settings
+from app.infrastructure.security.secret_box import generate_key
+from app.infrastructure.security.tokens import generate_private_key_pem
 
 
 def _production(**overrides: Any) -> Settings:

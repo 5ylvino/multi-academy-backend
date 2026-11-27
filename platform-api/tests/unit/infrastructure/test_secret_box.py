@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from masms.infrastructure.security.secret_box import AesGcmSecretBox, decode_key, generate_key
+from app.infrastructure.security.secret_box import AesGcmSecretBox, decode_key, generate_key
 
 
 def _box(current: str = "k1", **keys: str) -> AesGcmSecretBox:

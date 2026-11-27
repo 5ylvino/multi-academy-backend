@@ -6,9 +6,9 @@ from typing import Any
 
 import httpx
 
-from masms.domain.identity import totp
-from masms.infrastructure.container import Container
-from masms.use_cases.identity.create_platform_user import CreatePlatformUserCommand
+from app.domain.identity import totp
+from app.infrastructure.container import Container
+from app.use_cases.identity.create_platform_user import CreatePlatformUserCommand
 from tests.integration.conftest import Mailbox
 
 ADMIN_PASSWORD = "Strong-Passphrase-2026"

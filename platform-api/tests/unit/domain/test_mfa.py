@@ -5,13 +5,13 @@ from uuid import uuid4
 
 import pytest
 
-from masms.domain.identity import totp
-from masms.domain.identity.mfa import (
+from app.domain.identity import totp
+from app.domain.identity.mfa import (
     TotpFactor,
     looks_like_recovery_code,
     normalise_recovery_code,
 )
-from masms.domain.shared.errors import Conflict, InvalidStateTransition
+from app.domain.shared.errors import Conflict, InvalidStateTransition
 
 RFC_SECRET = b"12345678901234567890"
 

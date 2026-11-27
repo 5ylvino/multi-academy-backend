@@ -5,9 +5,9 @@ from uuid import UUID
 
 import pytest
 
-from masms.domain.platform.feature_flags import FeatureFlag, FlagContext, Plan, resolve_flag
-from masms.domain.shared.errors import ValidationFailed
-from masms.domain.shared.ids import new_id
+from app.domain.platform.feature_flags import FeatureFlag, FlagContext, Plan, resolve_flag
+from app.domain.shared.errors import ValidationFailed
+from app.domain.shared.ids import new_id
 
 NOW = datetime(2026, 11, 27, tzinfo=UTC)
 TENANT = UUID("01937000-0000-7000-8000-000000000001")

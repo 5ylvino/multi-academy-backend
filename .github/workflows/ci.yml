@@ -64,8 +64,8 @@ jobs:
       - run: uv sync --frozen --python 3.12
       - name: Create the non-superuser app role (RLS applies to it)
         run: PGPASSWORD=owner psql -h localhost -U masms_owner -d masms_test -c "CREATE ROLE masms_app LOGIN PASSWORD 'app' NOSUPERUSER NOBYPASSRLS"
-      - run: uv run ruff format --check src tests
-      - run: uv run ruff check src tests
+      - run: uv run ruff format --check app tests
+      - run: uv run ruff check app tests
       - run: uv run mypy
       - run: uv run lint-imports
       - run: uv run pytest -q --cov --cov-fail-under=80
