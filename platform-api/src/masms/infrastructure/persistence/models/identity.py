@@ -6,12 +6,14 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
+    BigInteger,
     Boolean,
     DateTime,
     ForeignKeyConstraint,
     Index,
     Integer,
     String,
+    Text,
     UniqueConstraint,
     text,
 )
@@ -61,6 +63,24 @@ class PlatformUserRow(_UserColumns, Base):
     id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
 
     __table_args__ = (UniqueConstraint("email", name="uq_platform_users_email"),)
+
+
+class PlatformMfaFactorRow(Base):
+    """Authenticator-app factor for owner-console staff. The seed is AES-GCM encrypted."""
+
+    __tablename__ = "platform_mfa_factors"
+
+    user_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), unique=True)
+    secret_ciphertext: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    confirmed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_used_step: Mapped[int | None] = mapped_column(BigInteger)
+    recovery_code_hashes: Mapped[list[str]] = mapped_column(
+        ARRAY(String(64)), server_default=text("'{}'")
+    )
+
+    __table_args__ = (ForeignKeyConstraint(["user_id"], ["platform_users.id"], ondelete="CASCADE"),)
 
 
 class AuthSessionRow(Base):

@@ -70,6 +70,9 @@ class RequestContextMiddleware:
                 headers = list(message.get("headers", []))
                 headers.append((b"x-request-id", request_id.encode()))
                 headers.extend(_SECURITY_HEADERS)
+                # API responses carry tokens and personal data: never cache them in shared caches.
+                if not any(name.lower() == b"cache-control" for name, _ in headers):
+                    headers.append((b"cache-control", b"no-store"))
                 message["headers"] = headers
             await send(message)
 

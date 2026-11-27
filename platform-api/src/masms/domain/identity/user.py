@@ -129,5 +129,11 @@ class UserAccount(AggregateRoot):
     def enable(self) -> None:
         self.status = UserStatus.ACTIVE
 
+    def enable_mfa(self) -> None:
+        self.mfa_enabled = True
+
+    def disable_mfa(self) -> None:
+        self.mfa_enabled = False
+
     def change_password_hash(self, new_hash: str) -> None:
         self.password_hash = new_hash

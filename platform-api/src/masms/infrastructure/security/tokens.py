@@ -19,8 +19,9 @@ _ALGORITHM = "EdDSA"
 _LEEWAY_SECONDS = 30
 
 
-def generate_private_key_pem() -> str:
-    key = Ed25519PrivateKey.generate()
+def generate_private_key_pem(seed: bytes | None = None) -> str:
+    """A fresh Ed25519 key, or a deterministic one from a 32-byte seed (development only)."""
+    key = Ed25519PrivateKey.from_private_bytes(seed) if seed else Ed25519PrivateKey.generate()
     return key.private_bytes(
         serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8, serialization.NoEncryption()
     ).decode()

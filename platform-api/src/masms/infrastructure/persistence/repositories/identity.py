@@ -6,10 +6,13 @@ import base64
 from datetime import UTC, datetime
 from uuid import UUID
 
+from sqlalchemy import delete as sa_delete
 from sqlalchemy import or_, select, update
+from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from masms.domain.identity.invite import UserInvite
+from masms.domain.identity.mfa import TotpFactor
 from masms.domain.identity.roles import Realm
 from masms.domain.identity.session import RefreshSession
 from masms.domain.identity.user import UserAccount, UserStatus
@@ -17,6 +20,7 @@ from masms.domain.shared.errors import Conflict, ValidationFailed
 from masms.domain.shared.value_objects import EmailAddress, Page
 from masms.infrastructure.persistence.models.identity import (
     AuthSessionRow,
+    PlatformMfaFactorRow,
     PlatformUserRow,
     SchoolUserRow,
     UserInviteRow,
@@ -309,3 +313,48 @@ class SqlRefreshSessionRepository:
             .execution_options(synchronize_session=False)
         )
         return int(result.rowcount)  # type: ignore[attr-defined]
+
+    async def revoke_all_for_user(self, user_id: UUID, now: datetime) -> int:
+        result = await self._s.execute(
+            update(AuthSessionRow)
+            .where(AuthSessionRow.user_id == user_id, AuthSessionRow.revoked_at.is_(None))
+            .values(revoked_at=now)
+            .execution_options(synchronize_session=False)
+        )
+        return int(result.rowcount)  # type: ignore[attr-defined]
+
+
+class SqlMfaRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def get(self, user_id: UUID) -> TotpFactor | None:
+        row = await self._s.get(PlatformMfaFactorRow, user_id, with_for_update=True)
+        if row is None:
+            return None
+        return TotpFactor(
+            id=row.id,
+            user_id=row.user_id,
+            secret_ciphertext=row.secret_ciphertext,
+            created_at=row.created_at,
+            confirmed_at=row.confirmed_at,
+            last_used_step=row.last_used_step,
+            recovery_code_hashes=list(row.recovery_code_hashes),
+        )
+
+    async def upsert(self, factor: TotpFactor) -> None:
+        values = {
+            "id": factor.id,
+            "secret_ciphertext": factor.secret_ciphertext,
+            "created_at": factor.created_at,
+            "confirmed_at": factor.confirmed_at,
+            "last_used_step": factor.last_used_step,
+            "recovery_code_hashes": list(factor.recovery_code_hashes),
+        }
+        stmt = pg_insert(PlatformMfaFactorRow).values(user_id=factor.user_id, **values)
+        await self._s.execute(stmt.on_conflict_do_update(index_elements=["user_id"], set_=values))
+
+    async def delete(self, user_id: UUID) -> None:
+        await self._s.execute(
+            sa_delete(PlatformMfaFactorRow).where(PlatformMfaFactorRow.user_id == user_id)
+        )

@@ -5,8 +5,11 @@ Presentation code depends on this module only, never on concrete adapters.
 
 from __future__ import annotations
 
+import hashlib
+import hmac
 from dataclasses import dataclass, field
 from datetime import timedelta
+from typing import TypeVar
 
 import structlog
 from sqlalchemy import text
@@ -22,6 +25,7 @@ from masms.infrastructure.persistence.sqlalchemy.engine import create_engine, cr
 from masms.infrastructure.persistence.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWorkFactory
 from masms.infrastructure.providers.email.senders import LogEmailSender, SmtpEmailSender
 from masms.infrastructure.security.passwords import Argon2PasswordHasher
+from masms.infrastructure.security.secret_box import AesGcmSecretBox, decode_key
 from masms.infrastructure.security.secrets import CryptoSecretGenerator, HmacSecretHasher
 from masms.infrastructure.security.tokens import JwtTokenService, generate_private_key_pem
 from masms.use_cases.academics.structure import AcademicCalendar, ClassesAndSubjects, Enrolments
@@ -31,6 +35,16 @@ from masms.use_cases.identity.manage_school_users import (
     AcceptInvite,
     InviteSchoolUser,
     ListSchoolUsers,
+)
+from masms.use_cases.identity.mfa import (
+    ConfirmMfaEnrolment,
+    FindPlatformUserId,
+    MfaChallenges,
+    MfaUseCase,
+    RegenerateRecoveryCodes,
+    ResetPlatformUserMfa,
+    StartMfaEnrolment,
+    VerifyMfaSignIn,
 )
 from masms.use_cases.identity.notifications import SendInviteEmail
 from masms.use_cases.identity.refresh_session import RefreshSessionUseCase
@@ -57,6 +71,7 @@ from masms.use_cases.tenancy.school_bootstrap import GetSchoolBootstrap
 from masms.use_cases.tenancy.verify_school_email import ResendVerification, VerifySchoolEmail
 
 _log = structlog.get_logger(__name__)
+M = TypeVar("M", bound=MfaUseCase)
 
 
 @dataclass
@@ -88,6 +103,12 @@ class UseCases:
     academic_calendar: AcademicCalendar
     classes_and_subjects: ClassesAndSubjects
     enrolments: Enrolments
+    verify_mfa: VerifyMfaSignIn
+    start_mfa_enrolment: StartMfaEnrolment
+    confirm_mfa_enrolment: ConfirmMfaEnrolment
+    regenerate_recovery_codes: RegenerateRecoveryCodes
+    reset_platform_mfa: ResetPlatformUserMfa
+    find_platform_user_id: FindPlatformUserId
 
 
 @dataclass
@@ -142,6 +163,19 @@ def _email_sender(settings: Settings) -> EmailSender:
     return LogEmailSender()
 
 
+def _dev_key(settings: Settings, purpose: bytes) -> bytes:
+    pepper = settings.secret_pepper.get_secret_value().encode()
+    return hmac.new(pepper, b"masms-dev-key:" + purpose, hashlib.sha256).digest()
+
+
+def _secret_box(settings: Settings) -> AesGcmSecretBox:
+    if settings.data_keys:
+        keys = {kid: decode_key(v.get_secret_value()) for kid, v in settings.data_keys.items()}
+        return AesGcmSecretBox(current_key_id=settings.data_key_id, keys=keys)
+    _log.warning("secrets.derived_dev_data_key", detail="Set MASMS_DATA_KEYS")
+    return AesGcmSecretBox(current_key_id="dev", keys={"dev": _dev_key(settings, b"data-key")})
+
+
 def build_container(settings: Settings, *, role: str = "api") -> Container:
     primary = create_engine(
         settings.database_url.get_secret_value(), settings, application_name=f"masms-{role}"
@@ -176,12 +210,11 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
     if settings.jwt_private_key_pem is not None:
         private_pem = settings.jwt_private_key_pem.get_secret_value()
     else:
-        # Non-production only (settings validation refuses this in production): a key per process.
-        _log.warning(
-            "tokens.ephemeral_key",
-            detail="Set MASMS_JWT_PRIVATE_KEY_PEM to keep sessions across restarts",
-        )
-        private_pem = generate_private_key_pem()
+        # Non-production only (settings validation refuses this in production). Derived from the
+        # pepper so every worker process of a dev deployment agrees on the key.
+        _log.warning("tokens.derived_dev_key", detail="Set MASMS_JWT_PRIVATE_KEY_PEM")
+        private_pem = generate_private_key_pem(_dev_key(settings, b"jwt-signing"))
+    secret_box = _secret_box(settings)
     tokens = JwtTokenService(
         private_key_pem=private_pem,
         key_id=settings.jwt_key_id,
@@ -204,6 +237,21 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
     policy = LoginPolicy()
     runtime = GetTenantRuntime(uow_factory=uow, cache=cache)
     features = ResolveTenantFeatures(uow_factory=uow, cache=cache)
+    challenges = MfaChallenges(cache=cache, secrets=secrets, secret_hasher=secret_hasher)
+
+    def mfa_use_case(cls: type[M]) -> M:
+        return cls(
+            uow_factory=uow,
+            challenges=challenges,
+            box=secret_box,
+            secrets=secrets,
+            secret_hasher=secret_hasher,
+            issuer=platform_issuer,
+            limiter=limiter,
+            clock=clock,
+            policy=policy,
+            totp_issuer=settings.mfa_issuer,
+        )
 
     use_cases = UseCases(
         school_sign_in=SignIn(
@@ -221,6 +269,7 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
             limiter=limiter,
             clock=clock,
             policy=policy,
+            mfa=challenges if settings.platform_mfa_required else None,
         ),
         school_refresh=RefreshSessionUseCase(
             uow_factory=uow, secret_hasher=secret_hasher, issuer=school_issuer, clock=clock
@@ -283,6 +332,12 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
         academic_calendar=AcademicCalendar(uow_factory=uow, clock=clock),
         classes_and_subjects=ClassesAndSubjects(uow_factory=uow),
         enrolments=Enrolments(uow_factory=uow, clock=clock),
+        verify_mfa=mfa_use_case(VerifyMfaSignIn),
+        start_mfa_enrolment=mfa_use_case(StartMfaEnrolment),
+        confirm_mfa_enrolment=mfa_use_case(ConfirmMfaEnrolment),
+        regenerate_recovery_codes=mfa_use_case(RegenerateRecoveryCodes),
+        reset_platform_mfa=ResetPlatformUserMfa(uow_factory=uow, clock=clock),
+        find_platform_user_id=FindPlatformUserId(uow_factory=uow),
     )
 
     email = _email_sender(settings)

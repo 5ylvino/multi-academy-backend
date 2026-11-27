@@ -12,6 +12,7 @@ from uuid import UUID
 from masms.domain.academics.repositories import AcademicsRepository
 from masms.domain.identity.repositories import (
     InviteRepository,
+    MfaRepository,
     RefreshSessionRepository,
     UserRepository,
 )
@@ -52,6 +53,18 @@ class SecretGenerator(Protocol):
         ...
 
     def numeric_code(self, digits: int) -> str: ...
+
+    def random_bytes(self, length: int) -> bytes: ...
+
+    def code_from_alphabet(self, alphabet: str, length: int) -> str: ...
+
+
+class SecretBox(Protocol):
+    """Authenticated encryption for secrets we must read back (e.g. authenticator seeds)."""
+
+    def encrypt(self, plaintext: bytes) -> str: ...
+
+    def decrypt(self, ciphertext: str) -> bytes: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,6 +147,9 @@ class UnitOfWork(Protocol):
 
     @property
     def invites(self) -> InviteRepository: ...
+
+    @property
+    def mfa(self) -> MfaRepository: ...
 
     @property
     def academics(self) -> AcademicsRepository: ...

@@ -7,6 +7,7 @@ from typing import Protocol
 from uuid import UUID
 
 from masms.domain.identity.invite import UserInvite
+from masms.domain.identity.mfa import TotpFactor
 from masms.domain.identity.session import RefreshSession
 from masms.domain.identity.user import UserAccount
 from masms.domain.shared.value_objects import EmailAddress, Page
@@ -54,3 +55,13 @@ class RefreshSessionRepository(Protocol):
     async def save(self, session: RefreshSession) -> None: ...
 
     async def revoke_family(self, family_id: UUID, now: datetime) -> int: ...
+
+    async def revoke_all_for_user(self, user_id: UUID, now: datetime) -> int: ...
+
+
+class MfaRepository(Protocol):
+    async def get(self, user_id: UUID) -> TotpFactor | None: ...
+
+    async def upsert(self, factor: TotpFactor) -> None: ...
+
+    async def delete(self, user_id: UUID) -> None: ...

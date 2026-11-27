@@ -27,4 +27,10 @@ class CryptoSecretGenerator:
         return secrets.token_urlsafe(32)
 
     def numeric_code(self, digits: int) -> str:
-        return "".join(secrets.choice("0123456789") for _ in range(digits))
+        return self.code_from_alphabet("0123456789", digits)
+
+    def random_bytes(self, length: int) -> bytes:
+        return secrets.token_bytes(length)
+
+    def code_from_alphabet(self, alphabet: str, length: int) -> str:
+        return "".join(secrets.choice(alphabet) for _ in range(length))

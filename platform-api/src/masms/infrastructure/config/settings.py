@@ -49,6 +49,14 @@ class Settings(BaseSettings):
     #: HMAC key for refresh tokens and verification codes. 32+ random bytes.
     secret_pepper: SecretStr = SecretStr("dev-only-pepper-change-me-0123456789abcdef")
 
+    #: AES-256-GCM keys (base64url, 32 bytes) for secrets read back later, e.g. MFA seeds.
+    #: ``data_keys`` maps key id -> key; ``data_key_id`` picks the one new data is sealed with.
+    data_keys: dict[str, SecretStr] = Field(default_factory=dict)
+    data_key_id: str = "d1"
+    #: Owner-console staff must use an authenticator app. Only tests may turn this off.
+    platform_mfa_required: bool = True
+    mfa_issuer: str = "MA-SMS Console"
+
     cors_school_origins: list[str] = Field(default_factory=list)
     cors_platform_origins: list[str] = Field(default_factory=list)
     trusted_hosts: list[str] = Field(default_factory=lambda: ["*"])
@@ -94,6 +102,10 @@ class Settings(BaseSettings):
             or len(self.secret_pepper.get_secret_value()) < 32
         ):
             problems.append("MASMS_SECRET_PEPPER must be 32+ random characters")
+        if self.data_key_id not in self.data_keys:
+            problems.append("MASMS_DATA_KEYS must include MASMS_DATA_KEY_ID")
+        if not self.platform_mfa_required:
+            problems.append("MASMS_PLATFORM_MFA_REQUIRED cannot be off")
         if "*" in self.trusted_hosts:
             problems.append("MASMS_TRUSTED_HOSTS must list real host names")
         if self.email_provider == "log":

@@ -8,6 +8,7 @@ from masms.domain.identity.roles import Realm
 from masms.domain.identity.user import LoginPolicy, UserAccount
 from masms.domain.shared.errors import AuthenticationFailed, TenantUnavailable
 from masms.domain.shared.value_objects import EmailAddress, Slug
+from masms.use_cases.identity.mfa import ChallengePurpose, MfaChallenge, MfaChallenges
 from masms.use_cases.identity.session_issuer import ClientInfo, IssuedSession, SessionIssuer
 from masms.use_cases.shared.ports import (
     Clock,
@@ -40,6 +41,7 @@ class SignIn:
         limiter: RateLimiter,
         clock: Clock,
         policy: LoginPolicy,
+        mfa: MfaChallenges | None = None,
     ) -> None:
         self._uow_factory = uow_factory
         self._hasher = hasher
@@ -47,8 +49,10 @@ class SignIn:
         self._limiter = limiter
         self._clock = clock
         self._policy = policy
+        self._mfa = mfa
 
-    async def __call__(self, cmd: SignInCommand) -> IssuedSession:
+    async def __call__(self, cmd: SignInCommand) -> IssuedSession | MfaChallenge:
+        """A session, or, when a second factor is required, a challenge to complete it with."""
         email = EmailAddress(cmd.email)
         await self._limiter.hit(f"signin:ip:{cmd.client.ip_address}", limit=60, window_seconds=60)
         await self._limiter.hit(f"signin:email:{cmd.realm}:{email}", limit=10, window_seconds=300)
@@ -69,9 +73,17 @@ class SignIn:
                 await uow.commit()
                 raise AuthenticationFailed(_BAD_CREDENTIALS)
 
-            user.record_successful_sign_in(now)
-            if self._hasher.needs_rehash(user.password_hash):
+            rehashed = self._hasher.needs_rehash(user.password_hash)
+            if rehashed:
                 user.change_password_hash(await self._hasher.hash(cmd.password))
+            if self._mfa is not None:
+                # The failure counter is reset only once the second factor passes.
+                if rehashed:
+                    await uow.users.save(user)
+                    await uow.commit()
+                purpose = ChallengePurpose.VERIFY if user.mfa_enabled else ChallengePurpose.ENROL
+                return await self._mfa.open(user.id, purpose)
+            user.record_successful_sign_in(now)
             await uow.users.save(user)
             issued, _ = await self._issuer.issue(
                 uow, user, client=cmd.client, tenant_config_version=config_version

@@ -17,6 +17,7 @@ from masms.infrastructure.persistence.models.system import AuditEventRow, Outbox
 from masms.infrastructure.persistence.repositories.academics import SqlAcademicsRepository
 from masms.infrastructure.persistence.repositories.identity import (
     SqlInviteRepository,
+    SqlMfaRepository,
     SqlRefreshSessionRepository,
     SqlUserRepository,
 )
@@ -71,6 +72,7 @@ class SqlAlchemyUnitOfWork:
         self.flags = SqlFeatureFlagRepository(s)
         self.plans = SqlPlanRepository(s)
         self.invites = SqlInviteRepository(s)
+        self.mfa = SqlMfaRepository(s)
         self.academics = SqlAcademicsRepository(s, self._scope)
         return self
 

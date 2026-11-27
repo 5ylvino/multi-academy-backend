@@ -7,6 +7,7 @@ from fastapi import APIRouter, status
 from masms.domain.identity.roles import Realm
 from masms.presentation.http.dependencies.auth import PlatformPrincipal, SchoolPrincipal
 from masms.presentation.http.dependencies.context import ClientInfoDep, UseCasesDep
+from masms.presentation.http.v1.identity.mfa_schemas import MfaChallengeResponse
 from masms.presentation.http.v1.identity.schemas import (
     CurrentUserResponse,
     PlatformSignInRequest,
@@ -14,6 +15,7 @@ from masms.presentation.http.v1.identity.schemas import (
     SchoolSignInRequest,
     SessionResponse,
 )
+from masms.use_cases.identity.mfa import MfaChallenge
 from masms.use_cases.identity.refresh_session import RefreshCommand
 from masms.use_cases.identity.sign_in import SignInCommand
 from masms.use_cases.identity.sign_out import SignOutCommand
@@ -35,6 +37,8 @@ async def school_sign_in(
             client=client,
         )
     )
+    if isinstance(issued, MfaChallenge):  # school sign-in has no second step yet
+        raise RuntimeError("unexpected MFA challenge for a school sign-in")
     return SessionResponse.of(issued)
 
 
@@ -58,10 +62,11 @@ async def school_me(principal: SchoolPrincipal, uc: UseCasesDep) -> CurrentUserR
     return CurrentUserResponse.model_validate(await uc.current_user(principal))
 
 
-@platform_router.post("/sign-in", response_model=SessionResponse)
+@platform_router.post("/sign-in", response_model=MfaChallengeResponse | SessionResponse)
 async def platform_sign_in(
     body: PlatformSignInRequest, uc: UseCasesDep, client: ClientInfoDep
-) -> SessionResponse:
+) -> MfaChallengeResponse | SessionResponse:
+    """A correct password returns an MFA challenge; finish at ``/platform/auth/mfa/*``."""
     issued = await uc.platform_sign_in(
         SignInCommand(
             realm=Realm.PLATFORM,
@@ -71,6 +76,8 @@ async def platform_sign_in(
             client=client,
         )
     )
+    if isinstance(issued, MfaChallenge):
+        return MfaChallengeResponse.of(issued)
     return SessionResponse.of(issued)
 
 

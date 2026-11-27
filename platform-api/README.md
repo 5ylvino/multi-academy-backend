@@ -78,8 +78,13 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | POST | `/api/v1/schools/{slug}/verification/resend` | public |
 | POST | `/api/v1/auth/sign-in`, `/refresh`, `/sign-out` | school users |
 | GET | `/api/v1/auth/me`, `/api/v1/bootstrap` | school users |
-| POST | `/api/v1/platform/auth/sign-in`, `/refresh`, `/sign-out` | platform staff |
+| POST | `/api/v1/platform/auth/sign-in` | platform staff: password step, returns an MFA challenge |
+| POST | `/api/v1/platform/auth/mfa/enrolment`, `/mfa/enrolment/confirm` | first sign-in: set up the authenticator app |
+| POST | `/api/v1/platform/auth/mfa/verify` | finish sign-in with an app or recovery code |
+| POST | `/api/v1/platform/auth/refresh`, `/sign-out` | platform staff |
 | GET | `/api/v1/platform/auth/me` | platform staff |
+| POST | `/api/v1/platform/auth/mfa/recovery-codes` | platform staff, with a live app code |
+| POST | `/api/v1/platform/users/{id}/mfa/reset` | `platform_users:write` (not for yourself) |
 | GET | `/api/v1/platform/tenants`, `/{id}` | `tenants:read` |
 | POST | `/api/v1/platform/tenants/{id}/status` | `tenants:write` |
 | GET/PUT | `/api/v1/platform/flags`, `/flags/{key}` | `flags:read` / `flags:write` |
@@ -98,3 +103,20 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET | `/health/live`, `/health/ready`, `/metrics` | infrastructure |
 
 Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
+
+## Owner-console MFA
+
+Every console account must use an authenticator app; there is no session from a password alone.
+
+1. `POST /platform/auth/sign-in` with email and password returns `{next_step, challenge_token}`
+   (valid 5 minutes, single use, 5 attempts).
+2. `next_step = "enrol"`: call `/mfa/enrolment` to get the secret and `otpauth://` URI (show
+   it as a QR code), then `/mfa/enrolment/confirm` with the first code. The reply holds the
+   session and 10 recovery codes, shown once.
+3. `next_step = "verify"`: call `/mfa/verify` with a 6-digit code or a recovery code.
+
+Seeds are AES-256-GCM encrypted with `MASMS_DATA_KEYS` (rotate by adding a key id and moving
+`MASMS_DATA_KEY_ID`). Codes can't be replayed, and wrong codes count toward account lockout.
+A lost phone is reset by another admin, or on the server with
+`python -m masms.presentation.cli reset-platform-mfa --email E`.
+
