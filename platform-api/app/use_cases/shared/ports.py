@@ -10,6 +10,7 @@ from typing import Any, Protocol, Self
 from uuid import UUID
 
 from app.domain.academics.repositories import AcademicsRepository
+from app.domain.assessment.repositories import AssessmentRepository
 from app.domain.attendance.repositories import AttendanceRepository
 from app.domain.communication.repositories import CommunicationRepository
 from app.domain.finance.repositories import (
@@ -358,6 +359,9 @@ class UnitOfWork(Protocol):
 
     @property
     def hostel(self) -> HostelRepository: ...
+
+    @property
+    def assessment(self) -> AssessmentRepository: ...
 
     @property
     def audit_log(self) -> AuditLogRepository: ...

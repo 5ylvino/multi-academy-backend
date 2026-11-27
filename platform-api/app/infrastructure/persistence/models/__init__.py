@@ -2,6 +2,7 @@
 
 from app.infrastructure.persistence.models import (
     academics,
+    assessment,
     attendance,
     communication,
     finance,
@@ -20,6 +21,7 @@ from app.infrastructure.persistence.models import (
 
 __all__ = [
     "academics",
+    "assessment",
     "attendance",
     "communication",
     "finance",

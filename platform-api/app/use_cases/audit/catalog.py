@@ -75,6 +75,17 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "academics.subject_unlinked": ActionInfo("Removed a subject from a class", _A),
         "academics.student_enrolled": ActionInfo("Enrolled a student", _A),
         "academics.student_withdrawn": ActionInfo("Withdrew a student from a class", _A),
+        # Assessment
+        "assessment.scheme_changed": ActionInfo("Changed how subjects are scored", _A),
+        "assessment.scale_changed": ActionInfo("Changed the grading scale", _A),
+        "assessment.marks_saved": ActionInfo("Entered or changed marks", _A),
+        "assessment.student_exempted": ActionInfo("Marked a student as not taking a subject", _A),
+        "assessment.exemption_removed": ActionInfo("Put a student back on a subject's sheet", _A),
+        "assessment.sheet_submitted": ActionInfo("Submitted marks for approval", _A),
+        "assessment.sheet_recalled": ActionInfo("Took back submitted marks", _A),
+        "assessment.sheet_approved": ActionInfo("Approved marks", _A),
+        "assessment.sheet_sent_back": ActionInfo("Sent marks back to the teacher", _A),
+        "assessment.sheet_reopened": ActionInfo("Reopened approved marks", _A),
         # Attendance
         "attendance.register_submitted": ActionInfo("Took the class register", _T),
         "attendance.mark_corrected": ActionInfo("Corrected an attendance mark", _T),

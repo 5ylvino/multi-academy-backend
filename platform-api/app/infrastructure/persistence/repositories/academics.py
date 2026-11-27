@@ -362,6 +362,32 @@ class SqlAcademicsRepository:
         )
         return set(await self._s.scalars(homeroom.union(subject)))
 
+    async def subject_teacher(self, class_id: UUID, subject_id: UUID) -> UUID | None:
+        teacher: UUID | None = await self._s.scalar(
+            select(ClassSubjectRow.teacher_id).where(
+                ClassSubjectRow.tenant_id == self._tid,
+                ClassSubjectRow.class_id == class_id,
+                ClassSubjectRow.subject_id == subject_id,
+            )
+        )
+        return teacher
+
+    async def subjects_taught(self, teacher_id: UUID) -> list[tuple[UUID, UUID]]:
+        rows = await self._s.execute(
+            select(ClassSubjectRow.class_id, ClassSubjectRow.subject_id).where(
+                ClassSubjectRow.tenant_id == self._tid, ClassSubjectRow.teacher_id == teacher_id
+            )
+        )
+        return [(row[0], row[1]) for row in rows.all()]
+
+    async def class_subject_teachers(self, class_id: UUID) -> dict[UUID, UUID | None]:
+        rows = await self._s.execute(
+            select(ClassSubjectRow.subject_id, ClassSubjectRow.teacher_id).where(
+                ClassSubjectRow.tenant_id == self._tid, ClassSubjectRow.class_id == class_id
+            )
+        )
+        return {row[0]: row[1] for row in rows.all()}
+
     # enrolments
     async def add_enrolment(self, enrolment: Enrolment) -> None:
         self._s.add(

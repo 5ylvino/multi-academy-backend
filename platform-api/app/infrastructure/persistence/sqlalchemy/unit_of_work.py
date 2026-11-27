@@ -16,6 +16,7 @@ from app.domain.shared.ids import new_id
 from app.infrastructure.observability import request_context
 from app.infrastructure.persistence.models.system import AuditEventRow, OutboxEventRow
 from app.infrastructure.persistence.repositories.academics import SqlAcademicsRepository
+from app.infrastructure.persistence.repositories.assessment import SqlAssessmentRepository
 from app.infrastructure.persistence.repositories.attendance import SqlAttendanceRepository
 from app.infrastructure.persistence.repositories.audit import SqlAuditLogRepository
 from app.infrastructure.persistence.repositories.communication import (
@@ -111,6 +112,7 @@ class SqlAlchemyUnitOfWork:
         self.gate = SqlGateRepository(s, self._scope)
         self.transport = SqlTransportRepository(s, self._scope)
         self.hostel = SqlHostelRepository(s, self._scope)
+        self.assessment = SqlAssessmentRepository(s, self._scope)
         return self
 
     async def __aexit__(

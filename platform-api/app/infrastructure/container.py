@@ -33,6 +33,8 @@ from app.infrastructure.security.tokens import JwtTokenService, generate_private
 from app.infrastructure.storage.local import LocalObjectStore
 from app.infrastructure.storage.s3 import S3ObjectStore
 from app.use_cases.academics.structure import AcademicCalendar, ClassesAndSubjects, Enrolments
+from app.use_cases.assessment.gradebook import Gradebook
+from app.use_cases.assessment.setup import AssessmentSetup
 from app.use_cases.attendance.registers import StudentRegisters
 from app.use_cases.attendance.staff import StaffAttendance
 from app.use_cases.audit.trail import AuditTrail
@@ -166,6 +168,8 @@ class UseCases:
     gate: Gate
     transport: Transport
     hostels: Hostels
+    assessment_setup: AssessmentSetup
+    gradebook: Gradebook
 
 
 @dataclass
@@ -490,6 +494,8 @@ def build_container(
         gate=Gate(uow_factory=uow, clock=clock, school_time=school_time),
         transport=Transport(uow_factory=uow, clock=clock, school_time=school_time),
         hostels=Hostels(uow_factory=uow, clock=clock),
+        assessment_setup=AssessmentSetup(uow_factory=uow),
+        gradebook=Gradebook(uow_factory=uow, clock=clock, school_time=school_time),
         spending=Spending(
             uow_factory=uow, clock=clock, school_time=school_time, store=object_store
         ),

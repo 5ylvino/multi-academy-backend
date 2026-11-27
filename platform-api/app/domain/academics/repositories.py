@@ -59,6 +59,18 @@ class AcademicsRepository(Protocol):
         """Class teacher of the class, or teacher of one of its subjects."""
         ...
 
+    async def subject_teacher(self, class_id: UUID, subject_id: UUID) -> UUID | None:
+        """Who teaches this subject in this class, if anyone is assigned."""
+        ...
+
+    async def subjects_taught(self, teacher_id: UUID) -> list[tuple[UUID, UUID]]:
+        """(class, subject) pairs the person teaches."""
+        ...
+
+    async def class_subject_teachers(self, class_id: UUID) -> dict[UUID, UUID | None]:
+        """Each subject the class takes, with its teacher."""
+        ...
+
     async def class_of_student(self, student_id: UUID, session_id: UUID) -> UUID | None: ...
 
     async def classes_of_students(self, student_ids: set[UUID], session_id: UUID) -> set[UUID]:

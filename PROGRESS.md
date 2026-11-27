@@ -4,7 +4,7 @@ The handover file for this repository. **Read it first in every session, and upd
 of every task** (what changed, what's next, any new decision). Keep it short and current: replace
 stale lines rather than appending history forever. Detailed history lives in git and in PR #1.
 
-Last updated: 27 Nov 2026, after commit `6a9bdd3` (boarding). Next: assessment and results.
+Last updated: 27 Nov 2026, after commit `6a9bdd3` (boarding). Next: results and report cards.
 
 ---
 
@@ -77,6 +77,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
 | `ce575ff` | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
+| (this commit) | Assessment and gradebook: a scheme per school level (parts adding to 100, fixed once the term has marks), a grading scale covering 0 to 100, score sheets per class, subject and term with batch autosave, exemptions for students not taking a subject, submit, recall, two-person approval (DB-enforced), send back and reopen with reasons, marks frozen by trigger outside draft, every mark change logged |
 | `6a9bdd3` | Boarding: hostels with a warden and rooms with beds, boarders allocated without overfilling a room or bed, a roll call showing who is away, exeats asked for by guardians (or staff) and decided by someone else (DB-enforced), one open exeat per boarder, signed out and back in with guardians told at each step, overdue list |
 | `09b0adf` | Transport: bus routes with a driver, seats and ordered stops, students assigned with seat checks under a lock, a driver-only manifest in pickup order, boarding, drop-off and absence recorded append-only with guardians told each time, guardians see their child's route, today's trips and history |
 | `3135538` | Clinic and gate: health records kept by guardians and the nurse (teachers see only the shared alert), clinic visits with outcomes, inbox notice to guardians and an email when sent home or referred; authorised collectors (every day or one day), gate release decisions recorded append-only with guardians told, refusals recorded; visitor book with fire register; medical text encrypted, staff record views logged |
@@ -88,7 +89,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `39f1562` | Platform billing: plan prices (base + per student, per term by default), a subscription per school, invoices issued a week ahead, reminders, 14-day grace then suspension, payment (platform Paystack account, recorded bank transfer, or waiver) reinstates only billing suspensions; emailed pay link that works while suspended; console list/record/void/change plan/run; worker every 15 minutes |
 | `5f285a9` | Audit trail: every change recorded with who, what, field changes, request id, IP and device; append-only and RLS-protected; search, CSV export and plain-English labels for school leaders and owner staff; tests that fail when a new use case forgets to audit |
 
-**Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0017`:
+**Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0018`:
 
 1. `0001` foundation, identity, tenancy, platform
 2. `0002` school users, invites, academics
@@ -113,8 +114,10 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
     route's stops by foreign key, append-only boardings; RLS)
 17. `0017` hostel (hostels, rooms, allocations with one boarder per bed, exeats with a
     two-person CHECK and one open exeat per boarder; RLS; no deletes of exeats)
+18. `0018` assessment gradebook (scheme parts, grade bands, score sheets with a two-person
+    CHECK, marks and exemptions frozen by trigger outside draft; RLS)
 
-**Quality at last run:** 421 tests pass, coverage 92%, ruff, mypy --strict and the 5
+**Quality at last run:** 448 tests pass, coverage 92%, ruff, mypy --strict and the 5
 import-linter contracts clean.
 
 **Not verified:** the Docker image was not rebuilt after the `app/` move (no Docker in the cloud
@@ -125,9 +128,9 @@ session). Build it once locally: `docker compose up --build`.
 Next, in order:
 
 1. Hardening pass: console tables to their own schema and DB role.
-2. **Phase 3** (school life): communication, safeguarding, clinic, gate, transport and
-   boarding done; next assessment and results, portal, reports. MFA mandatory for director, school admin,
-   bursar, IT admin.
+2. **Phase 3** (school life): communication, safeguarding, clinic, gate, transport, boarding
+   and the gradebook done; next results and report cards, then portal, reports. MFA mandatory
+   for director, school admin, bursar, IT admin.
 3. **Phase 4** (growth): tutoring, intelligence (AI). AI tutor requirements from the owner
    (27 Nov 2026), see section 8.
 4. **Phase 5**: data migration from the old per-school databases, cutover, hosting decision.
@@ -219,6 +222,8 @@ The full plan is the Claude Doc "MA-SMS Rebuild Plan"
 | `safeguarding:manage` is grantable, not role-only | Each school names its own designated safeguarding lead, who may hold any role |
 | Hosting left open until Phase 5 | Owner's call. One VPS can't carry the target load, so it needs a real sizing exercise |
 | One-day collectors and append-only gate releases | A school must be able to show who took a child home and on whose authority; one-off entries cover the common "my driver collects today" case without leaving a standing permission behind |
+| Score sheets need a second person to approve | Results decide promotions and admissions; the teacher who enters marks never signs them off, and the database refuses it too |
+| The scheme is fixed once a term has marks | Every mark in a term is out of the same parts, so totals and positions compare like with like |
 | Drivers see only the routes they drive | A manifest holds children's names and where they wait for the bus; a driver needs their own run and nothing else |
 | Teachers see only the clinic alert, not the record | Least privilege for health data: a teacher needs to know about the peanut allergy, not the diagnosis history |
 

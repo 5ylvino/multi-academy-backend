@@ -153,6 +153,10 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET | `/api/v1/clinic/students/{id}/alert` | staff with `clinic:read`: allergies and the shared note only |
 | GET/POST/PATCH | `/api/v1/clinic/visits`, `/{id}`, `/{id}/close` | `clinic:manage`; guardians list their child's visits |
 | GET/POST/DELETE | `/api/v1/gate/students/{id}/collectors`, `/gate/collectors/{id}` | the student's guardians or `students:update` (office) |
+| GET/PUT | `/api/v1/assessment/schemes/{level}`, `/assessment/scales/{level}` | GET: `results:read`; PUT: `grading:manage` |
+| GET/PUT | `/api/v1/assessment/sheet`, `/sheet/marks`, `/sheet/exemptions` | the subject's teacher (`results:create`) or `results:approve`; the class teacher and `results:view_all` can read |
+| POST | `/api/v1/assessment/sheets/{id}/submit`, `/recall`, `/approve`, `/send-back`, `/reopen` | teacher submits and recalls; `results:approve` decides (never their own) |
+| GET | `/api/v1/assessment/terms/{id}/classes/{id}/sheets`, `/my-sheets`, `/awaiting-approval` | class teacher and leaders; the teacher; approvers |
 | GET/POST/PUT | `/api/v1/transport/routes`, `/{id}`, `/{id}/stops`; PUT/DELETE `/transport/stops/{id}` | `transport:manage` (office); `transport:read` staff can list |
 | PUT/DELETE | `/api/v1/transport/students/{id}` | `transport:manage`: put a student on a route and stop |
 | GET/POST | `/api/v1/transport/routes/{id}/manifest`, `/{id}/boardings` | the route's driver (`transport:board`) or the office; staff with `transport:read` see manifests |
@@ -304,6 +308,21 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
   their child's history; leaders see the school's last 90 days.
 - The visitor book signs visitors in (purpose, the member of staff they're seeing, badge,
   vehicle) and out. `GET /gate/visits?on_site=true` is the fire register.
+
+## Assessment and the gradebook
+
+- Each school level (nursery, primary, secondary) has a scheme: the parts of a subject's term
+  mark (by default note 10, two tests of 15, examination 60), always adding up to 100. Staff with
+  `grading:manage` change it; once marks exist for the level in the current term it is fixed
+  until next term. Retired parts are kept for past terms.
+- Each level has a grading scale (default A 70+, B 60, C 50, D 45, E 40, F below 40). Bands must
+  cover 0 to 100 with no gaps or overlaps. Totals round half up before grading (69.5 is an A).
+- One score sheet per class, subject and term. The subject teacher enters marks (autosave in
+  batches; unchanged marks are skipped; each change is logged with the old and new mark), marks
+  students who don't take the subject, and submits when every mark is in. Approvers get an inbox
+  notice. A leader approves (never their own submission, enforced in the database too), sends it
+  back with a reason, or reopens an approved sheet with a reason; the teacher is told.
+- Marks can't change once a sheet leaves draft: the app checks, and a database trigger refuses.
 
 ## Transport
 

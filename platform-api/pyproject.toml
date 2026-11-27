@@ -139,4 +139,5 @@ modules = [
   "app.domain.communication",
   "app.domain.safeguarding",
   "app.domain.operations",
+  "app.domain.assessment",
 ]
