@@ -4,7 +4,7 @@ The handover file for this repository. **Read it first in every session, and upd
 of every task** (what changed, what's next, any new decision). Keep it short and current: replace
 stale lines rather than appending history forever. Detailed history lives in git and in PR #1.
 
-Last updated: 27 Nov 2026, after commit `3135538` (clinic and gate). Next: hostel.
+Last updated: 27 Nov 2026, after commit `09b0adf` (transport). Next: hostel.
 
 ---
 
@@ -77,7 +77,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
 | `ce575ff` | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
-| (this commit) | Transport: bus routes with a driver, seats and ordered stops, students assigned with seat checks under a lock, a driver-only manifest in pickup order, boarding, drop-off and absence recorded append-only with guardians told each time, guardians see their child's route, today's trips and history |
+| `09b0adf` | Transport: bus routes with a driver, seats and ordered stops, students assigned with seat checks under a lock, a driver-only manifest in pickup order, boarding, drop-off and absence recorded append-only with guardians told each time, guardians see their child's route, today's trips and history |
 | `3135538` | Clinic and gate: health records kept by guardians and the nurse (teachers see only the shared alert), clinic visits with outcomes, inbox notice to guardians and an email when sent home or referred; authorised collectors (every day or one day), gate release decisions recorded append-only with guardians told, refusals recorded; visitor book with fire register; medical text encrypted, staff record views logged |
 | `1945470` | Safeguarding: staff record concerns (reporter sees only their own), leads work cases with a chronology (notes, parent contact, referrals, case lead, close and reopen), inbox notice and urgent email to leads without details, encrypted text, column-level grants, every case opening logged |
 | `6a1401e` | Communication: announcements to roles and classes (scheduled, pinned, end dates, read receipts, withdrawal), urgent alerts emailed to the whole audience, parent and staff conversations with safeguarding rules (append-only messages, no students, parents only about their own children, logged leader review), notification inbox with badge counts |
