@@ -4,7 +4,7 @@ The handover file for this repository. **Read it first in every session, and upd
 of every task** (what changed, what's next, any new decision). Keep it short and current: replace
 stale lines rather than appending history forever. Detailed history lives in git and in PR #1.
 
-Last updated: 27 Nov 2026, after commit `39f1562` (platform billing). Next: budgets, inventory, payroll.
+Last updated: 27 Nov 2026, after the budgets and expenses commit. Next: inventory, then payroll.
 
 ---
 
@@ -77,10 +77,11 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
 | `ce575ff` | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
+| (this commit) | Budgets and expenses: school expense categories, a budget per category per term, expenses recorded by one person and approved by another (DB-enforced), posted to the ledger, over-budget approval needs a note, voids reverse, receipts attached, budget-against-actual report |
 | `39f1562` | Platform billing: plan prices (base + per student, per term by default), a subscription per school, invoices issued a week ahead, reminders, 14-day grace then suspension, payment (platform Paystack account, recorded bank transfer, or waiver) reinstates only billing suspensions; emailed pay link that works while suspended; console list/record/void/change plan/run; worker every 15 minutes |
 | `5f285a9` | Audit trail: every change recorded with who, what, field changes, request id, IP and device; append-only and RLS-protected; search, CSV export and plain-English labels for school leaders and owner staff; tests that fail when a new use case forgets to audit |
 
-**Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0009`:
+**Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0010`:
 
 1. `0001` foundation, identity, tenancy, platform
 2. `0002` school users, invites, academics
@@ -92,8 +93,9 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 8. `0008` online payments (gateway accounts, checkouts; RLS)
 9. `0009` platform billing (plan prices, subscriptions, platform invoices and checkout references;
    RLS; invoice number sequence)
+10. `0010` budgets and expenses (categories, budgets, expenses; RLS; two-person CHECK)
 
-**Quality at last run:** 269 tests pass, coverage 90%, ruff, mypy --strict and the 5
+**Quality at last run:** 286 tests pass, coverage 90%, ruff, mypy --strict and the 5
 import-linter contracts clean.
 
 **Not verified:** the Docker image was not rebuilt after the `app/` move (no Docker in the cloud
@@ -103,7 +105,7 @@ session). Build it once locally: `docker compose up --build`.
 
 Next, in order:
 
-1. Rest of Phase 2: budgets, inventory, payroll. Hardening pass: console tables to their own
+1. Rest of Phase 2: inventory, then payroll. Hardening pass: console tables to their own
    schema and DB role.
 2. **Phase 3** (school life): communication, safeguarding, operations, assessment, portal,
    reports. MFA mandatory for director, school admin, bursar, IT admin.
@@ -161,6 +163,8 @@ The full plan is the Claude Doc "MA-SMS Rebuild Plan"
 | Online payment credited only after the provider's verify API confirms it; webhooks only say what to check | A webhook body can't be trusted for amounts; confirmation is repeatable and idempotent |
 | Paying online is for parents (`payments:process`), up to the amount owed | Students are usually minors; caps stop accidental overpayment |
 | Production refuses `sk_test_` keys and a non-https public API URL | Test keys can't take real money; webhooks must use TLS |
+| Expenses need a second person to approve, and over-budget approval needs a written reason | Same fraud control as refunds; overspending stays a recorded decision |
+| New permission `expenses:approve` for director, school admin, principal, head teacher | Bursars and admin staff record; leaders approve |
 | **Platform billing per term by default** (interval 1, 3, 4, 6 or 12 months), price = base + per active student | Matches how schools budget; per-student pricing scales with school size |
 | Invoice a week ahead, due when the period starts, 14-day grace, then suspend; reminders every 3 days for 30 days | Gives schools time to pay without the platform carrying unpaid use indefinitely |
 | A payment lifts only suspensions whose reason starts `Unpaid platform invoice` | A school suspended for abuse or a dispute must not come back by paying |

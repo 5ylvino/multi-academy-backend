@@ -26,6 +26,7 @@ class Account(StrEnum):
     CASH = "cash"  # asset
     BANK = "bank"  # asset: transfers, POS and cheques
     GATEWAY_CLEARING = "gateway_clearing"  # asset: online money not yet settled to the bank
+    EXPENSES = "expenses"  # expense: approved school spending
 
 
 PER_STUDENT = frozenset({Account.RECEIVABLE, Account.STUDENT_CREDIT})
@@ -47,6 +48,8 @@ class EntryKind(StrEnum):
     CREDIT_APPLIED = "credit_applied"
     CREDIT_RELEASED = "credit_released"
     REFUND_PAID = "refund_paid"
+    EXPENSE_PAID = "expense_paid"
+    EXPENSE_REVERSED = "expense_reversed"
 
 
 @dataclass(frozen=True, slots=True)

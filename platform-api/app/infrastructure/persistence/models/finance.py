@@ -490,3 +490,114 @@ class CheckoutRow(Base):
             postgresql_where=text("status = 'pending'"),
         ),
     )
+
+
+class ExpenseCategoryRow(Base):
+    __tablename__ = "finance_expense_categories"
+
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    name: Mapped[str] = mapped_column(String(80))
+    active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
+        Index(
+            "uq_finance_expense_categories_name",
+            "tenant_id",
+            text("lower(name)"),
+            unique=True,
+        ),
+    )
+
+
+class BudgetRow(Base):
+    __tablename__ = "finance_budgets"
+
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    term_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    category_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    planned_minor: Mapped[int] = mapped_column(BigInteger)
+    currency: Mapped[str] = mapped_column(String(3))
+    updated_by: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "term_id"],
+            ["academic_terms.tenant_id", "academic_terms.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "category_id"],
+            ["finance_expense_categories.tenant_id", "finance_expense_categories.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("tenant_id", "term_id", "category_id", name="uq_finance_budgets_line"),
+        CheckConstraint("planned_minor >= 0", name="planned_not_negative"),
+    )
+
+
+class ExpenseRow(Base):
+    __tablename__ = "finance_expenses"
+
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    number: Mapped[str] = mapped_column(String(24))
+    category_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    term_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    amount_minor: Mapped[int] = mapped_column(BigInteger)
+    currency: Mapped[str] = mapped_column(String(3))
+    payee: Mapped[str] = mapped_column(String(160))
+    description: Mapped[str] = mapped_column(String(500))
+    spent_on: Mapped[date] = mapped_column(Date)
+    method: Mapped[str] = mapped_column(String(16))
+    reference: Mapped[str | None] = mapped_column(String(120))
+    status: Mapped[str] = mapped_column(String(12))
+    recorded_by: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    recorded_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    receipt_key: Mapped[str | None] = mapped_column(String(255))
+    receipt_type: Mapped[str | None] = mapped_column(String(32))
+    receipt_size: Mapped[int | None] = mapped_column(Integer)
+    receipt_sha256: Mapped[str | None] = mapped_column(String(64))
+    decided_by: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True))
+    decided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    decision_note: Mapped[str | None] = mapped_column(String(500))
+    over_budget_note: Mapped[str | None] = mapped_column(String(500))
+    voided_by: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True))
+    voided_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    void_reason: Mapped[str | None] = mapped_column(String(500))
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "category_id"],
+            ["finance_expense_categories.tenant_id", "finance_expense_categories.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "term_id"],
+            ["academic_terms.tenant_id", "academic_terms.id"],
+            ondelete="RESTRICT",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "recorded_by"],
+            ["school_users.tenant_id", "school_users.id"],
+            ondelete="RESTRICT",
+        ),
+        UniqueConstraint("tenant_id", "number", name="uq_finance_expenses_number"),
+        CheckConstraint("amount_minor > 0", name="amount_positive"),
+        CheckConstraint(
+            "status IN ('pending', 'approved', 'rejected', 'void')", name="status_known"
+        ),
+        CheckConstraint(
+            "method IN ('cash', 'bank_transfer', 'pos', 'cheque')", name="method_known"
+        ),
+        # Two people: the database refuses an approver who recorded the expense.
+        CheckConstraint(
+            "decided_by IS NULL OR decided_by <> recorded_by", name="two_person_review"
+        ),
+        Index("ix_finance_expenses_term", "tenant_id", "term_id", "category_id", "status"),
+        Index("ix_finance_expenses_status", "tenant_id", "status", "id"),
+    )

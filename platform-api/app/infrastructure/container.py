@@ -41,6 +41,7 @@ from app.use_cases.finance.catalog import FinanceCatalog
 from app.use_cases.finance.online import OnlinePayments
 from app.use_cases.finance.payments import Payments
 from app.use_cases.finance.proofs import PaymentProofs
+from app.use_cases.finance.spending import Spending
 from app.use_cases.finance.statements import Statements
 from app.use_cases.identity.create_platform_user import CreatePlatformUser
 from app.use_cases.identity.get_current_user import GetCurrentUser
@@ -142,6 +143,7 @@ class UseCases:
     audit_trail: AuditTrail
     online_payments: OnlinePayments
     platform_billing: PlatformBilling
+    spending: Spending
 
 
 @dataclass
@@ -457,6 +459,9 @@ def build_container(
             allow_test_keys=settings.payments_allow_test_keys,
         ),
         platform_billing=platform_billing,
+        spending=Spending(
+            uow_factory=uow, clock=clock, school_time=school_time, store=object_store
+        ),
     )
 
     email = _email_sender(settings)

@@ -132,6 +132,10 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | POST/GET | `/api/v1/finance/checkouts`, `/{id}` | parents pay for linked children; staff with `payments:view` see all |
 | POST | `/api/v1/finance/checkouts/{id}/confirm` | the payer, on return from the payment page |
 | POST | `/api/v1/webhooks/payments/{provider}/{school_id}` | the provider (signature checked) |
+| GET/POST/PATCH | `/api/v1/finance/expense-categories`, `/{id}` | `budgets:read` / `budgets:manage` |
+| GET/PUT | `/api/v1/finance/budgets` | `budgets:read` (budget against actual) / `budgets:manage` |
+| POST/GET | `/api/v1/finance/expenses`, `/{id}`, `/{id}/receipt` | `budgets:manage` records, `budgets:read` views |
+| POST | `/api/v1/finance/expenses/{id}/approve`, `/reject`, `/void` | `expenses:approve` (not the recorder); recorder may cancel while pending |
 | GET | `/api/v1/subscription`, `/subscription/invoices` | `organization:view`: the school's plan and platform invoices |
 | POST | `/api/v1/subscription/invoices/{id}/pay`, `/confirm` | `organization:update` / `organization:view` |
 | GET/POST | `/api/v1/platform-invoices/{id}`, `/pay`, `/confirm` `?token=` | anyone with the emailed pay link (works while suspended) |
@@ -163,6 +167,20 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
   an ordinary payment. The same bank reference or the same file can't be claimed twice. Files are
   private, served only as downloads, and checked against their stored SHA-256.
 - Parents see and pay only for children the school has linked to them.
+
+## Budgets and expenses
+
+- Each school has expense categories (a starting set is created on first use; rename, add and
+  retire freely). A budget is the planned spend for one category in one term.
+- An expense (number `EXP-<year>-<seq>`) records who was paid, what for, when, how and the
+  reference (required for transfers, POS and cheques). A receipt file can be attached.
+- It counts only after a different person with `expenses:approve` approves it; the database also
+  refuses the recorder as approver. Approval posts debit `expenses`, credit `cash` or `bank`.
+- Approving past the category's budget answers `409 over_budget` with the numbers, unless the
+  approver adds a note saying why. Overspending is always deliberate and on record.
+- Voiding an approved expense posts the reversing entry. Rejected and cancelled expenses never
+  touch the books. `GET /finance/budgets` shows planned, approved, pending, remaining and percent
+  used per category, plus spending in categories with no budget.
 
 ## Online payments (Paystack)
 

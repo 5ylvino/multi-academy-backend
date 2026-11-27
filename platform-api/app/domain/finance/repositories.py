@@ -12,6 +12,7 @@ from app.domain.finance.ledger import Account, JournalEntry, StudentBalance
 from app.domain.finance.online import Checkout, GatewayAccount, GatewayProvider
 from app.domain.finance.payments import Allocation, Payment, Refund, RefundStatus
 from app.domain.finance.proofs import PaymentProof, ProofStatus
+from app.domain.finance.spending import Budget, Expense, ExpenseCategory, ExpenseStatus
 from app.domain.shared.value_objects import Page
 
 
@@ -200,4 +201,56 @@ class OnlinePaymentRepository(Protocol):
     async def pending_checkouts(self, *, older_than: datetime, limit: int) -> list[Checkout]:
         """Oldest pending checkouts created before ``older_than``, across every school in
         platform scope."""
+        ...
+
+
+class SpendingRepository(Protocol):
+    """Expense categories, budgets and expenses of the school in scope."""
+
+    async def add_category(self, category: ExpenseCategory) -> None: ...
+
+    async def get_category(self, category_id: UUID) -> ExpenseCategory | None: ...
+
+    async def save_category(self, category: ExpenseCategory) -> None: ...
+
+    async def list_categories(self, *, include_inactive: bool) -> list[ExpenseCategory]: ...
+
+    async def category_name_exists(self, name: str, *, other_than: UUID | None = None) -> bool:
+        """Case-insensitive."""
+        ...
+
+    async def get_budget(
+        self, term_id: UUID, category_id: UUID, *, for_update: bool = False
+    ) -> Budget | None: ...
+
+    async def save_budget(self, budget: Budget) -> None:
+        """Insert or update (one budget per term and category)."""
+        ...
+
+    async def budgets_for_term(self, term_id: UUID) -> list[Budget]: ...
+
+    async def add_expense(self, expense: Expense) -> None: ...
+
+    async def get_expense(
+        self, expense_id: UUID, *, for_update: bool = False
+    ) -> Expense | None: ...
+
+    async def save_expense(self, expense: Expense) -> None: ...
+
+    async def list_expenses(
+        self,
+        *,
+        term_id: UUID | None,
+        category_id: UUID | None,
+        status: ExpenseStatus | None,
+        cursor: str | None,
+        limit: int,
+    ) -> Page[Expense]: ...
+
+    async def spend_by_category(self, term_id: UUID, currency: str) -> dict[UUID, tuple[int, int]]:
+        """category id -> (approved minor, pending minor) for the term."""
+        ...
+
+    async def lock_category_term(self, term_id: UUID, category_id: UUID) -> None:
+        """Serialise approvals against one budget (transaction-scoped advisory lock)."""
         ...
