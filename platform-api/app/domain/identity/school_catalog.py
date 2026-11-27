@@ -570,7 +570,7 @@ SCHOOL_ROLE_PERMISSIONS: MappingProxyType[SchoolRole, frozenset[str]] = MappingP
                 "notifications:view",
                 "safeguarding:report",
                 "students:read",
-                "transport:read",
+                "transport:board",
             }
         ),
         SchoolRole.GUARD: _P(

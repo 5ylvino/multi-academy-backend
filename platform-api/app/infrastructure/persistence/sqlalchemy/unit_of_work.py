@@ -50,6 +50,7 @@ from app.infrastructure.persistence.repositories.tenancy import (
     SqlEmailVerificationRepository,
     SqlTenantRepository,
 )
+from app.infrastructure.persistence.repositories.transport import SqlTransportRepository
 from app.use_cases.shared.ports import AuditEntry, Scope
 
 
@@ -107,6 +108,7 @@ class SqlAlchemyUnitOfWork:
         self.safeguarding = SqlSafeguardingRepository(s, self._scope)
         self.clinic = SqlClinicRepository(s, self._scope)
         self.gate = SqlGateRepository(s, self._scope)
+        self.transport = SqlTransportRepository(s, self._scope)
         return self
 
     async def __aexit__(

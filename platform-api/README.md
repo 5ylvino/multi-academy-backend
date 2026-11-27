@@ -153,6 +153,10 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET | `/api/v1/clinic/students/{id}/alert` | staff with `clinic:read`: allergies and the shared note only |
 | GET/POST/PATCH | `/api/v1/clinic/visits`, `/{id}`, `/{id}/close` | `clinic:manage`; guardians list their child's visits |
 | GET/POST/DELETE | `/api/v1/gate/students/{id}/collectors`, `/gate/collectors/{id}` | the student's guardians or `students:update` (office) |
+| GET/POST/PUT | `/api/v1/transport/routes`, `/{id}`, `/{id}/stops`; PUT/DELETE `/transport/stops/{id}` | `transport:manage` (office); `transport:read` staff can list |
+| PUT/DELETE | `/api/v1/transport/students/{id}` | `transport:manage`: put a student on a route and stop |
+| GET/POST | `/api/v1/transport/routes/{id}/manifest`, `/{id}/boardings` | the route's driver (`transport:board`) or the office; staff with `transport:read` see manifests |
+| GET | `/api/v1/transport/students/{id}`, `/{id}/boardings` | the student, their guardians, or `transport:read` staff |
 | GET/POST | `/api/v1/gate/students/{id}/pickup`, `/gate/releases`; `/gate/visits`, `/{id}/sign-out` | `gate:manage` (guard, office); `gate:read` for leaders; guardians see their child's releases |
 | GET | `/api/v1/subscription`, `/subscription/invoices` | `organization:view`: the school's plan and platform invoices |
 | POST | `/api/v1/subscription/invoices/{id}/pay`, `/confirm` | `organization:update` / `organization:view` |
@@ -296,6 +300,20 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
   their child's history; leaders see the school's last 90 days.
 - The visitor book signs visitors in (purpose, the member of staff they're seeing, badge,
   vehicle) and out. `GET /gate/visits?on_site=true` is the fire register.
+
+## Transport
+
+- The office sets up bus routes (code, vehicle plate, seats, driver) with stops in pickup order
+  and their morning and afternoon times, then puts each student on a route and stop. Seats are
+  checked under a lock, so two people can't overfill a bus. A stop in use can't be removed, a
+  route with riders can't be stopped, and seats can't drop below the riders.
+- The driver sees only the routes they drive. The manifest lists today's riders in pickup order
+  (reversed for the home run) with each child's latest status. The driver records boarded,
+  dropped off, or absent (not at the stop); a child marked absent can still board late, and
+  events must come in a sensible order.
+- Guardians get an inbox notice for every event ("Ada is on the bus to school", "Ada wasn't at
+  the bus stop") and can see their child's route, stop, today's trips and 90 days of history.
+- Boarding records are append-only for the app role.
 
 ## Online payments (Paystack)
 

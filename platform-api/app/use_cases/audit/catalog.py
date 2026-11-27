@@ -154,7 +154,7 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "safeguarding.referred": ActionInfo("Referred a safeguarding case to an agency", _SG),
         "safeguarding.lead_assigned": ActionInfo("Assigned a safeguarding case lead", _SG),
         "safeguarding.status_changed": ActionInfo("Changed a safeguarding case's status", _SG),
-        # Welfare: clinic and gate (the activity log never holds medical detail)
+        # Welfare: clinic, gate, transport and boarding (the log never holds medical detail)
         "clinic.record_viewed": ActionInfo("Viewed a student's health record", _W),
         "clinic.record_updated": ActionInfo("Updated a student's health record", _W),
         "clinic.visit_opened": ActionInfo("Booked a student into the clinic", _W),
@@ -166,6 +166,15 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "gate.student_refused": ActionInfo("Refused to release a student at the gate", _W),
         "gate.visitor_signed_in": ActionInfo("Signed a visitor in", _W),
         "gate.visitor_signed_out": ActionInfo("Signed a visitor out", _W),
+        # Transport
+        "transport.route_created": ActionInfo("Created a bus route", _W),
+        "transport.route_updated": ActionInfo("Changed a bus route", _W),
+        "transport.stop_added": ActionInfo("Added a stop to a bus route", _W),
+        "transport.stop_updated": ActionInfo("Changed a bus stop", _W),
+        "transport.stop_removed": ActionInfo("Removed a bus stop", _W),
+        "transport.student_assigned": ActionInfo("Put a student on a bus route", _W),
+        "transport.student_unassigned": ActionInfo("Took a student off a bus route", _W),
+        "transport.boarding_recorded": ActionInfo("Recorded a student on the bus", _W),
         # School account
         "tenant.registered": ActionInfo("Signed up the school", _SC),
         "tenant.email_verified": ActionInfo("Confirmed the school's email", _SC),

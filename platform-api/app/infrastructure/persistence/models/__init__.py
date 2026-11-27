@@ -14,6 +14,7 @@ from app.infrastructure.persistence.models import (
     subscriptions,
     system,
     tenancy,
+    transport,
 )
 
 __all__ = [
@@ -30,4 +31,5 @@ __all__ = [
     "subscriptions",
     "system",
     "tenancy",
+    "transport",
 ]

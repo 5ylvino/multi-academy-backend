@@ -7,6 +7,7 @@ import pytest
 
 from app.domain.operations.clinic import ClinicVisit, ClinicVisitClosed, HealthRecord, Outcome
 from app.domain.operations.gate import Collector, Release, ReleaseStatus, Visit
+from app.domain.operations.transport import Boarding, BoardingKind, Direction, Route, Stop
 from app.domain.shared.errors import InvalidStateTransition, ValidationFailed
 
 NOW = datetime(2026, 11, 27, 12, tzinfo=UTC)
@@ -213,3 +214,92 @@ def test_visitor_signs_out_once() -> None:
             by=BY,
             now=NOW,
         )
+
+
+def _route(capacity: int = 30) -> Route:
+    return Route.create(
+        tenant_id=TENANT,
+        name=" Lekki  run ",
+        code="r-1",
+        vehicle_plate="lnd 123 ab",
+        capacity=capacity,
+        driver_id=None,
+        now=NOW,
+    )
+
+
+def test_route_normalises_and_validates() -> None:
+    route = _route()
+    assert (route.name, route.code, route.vehicle_plate) == ("Lekki run", "R-1", "LND 123 AB")
+    for over in ({"capacity": 0}, {"code": "has space"}, {"vehicle_plate": "!!"}):
+        args: dict[str, object] = {
+            "tenant_id": TENANT,
+            "name": "Lekki",
+            "code": "R1",
+            "vehicle_plate": None,
+            "capacity": 10,
+            "driver_id": None,
+            "now": NOW,
+        }
+        args.update(over)
+        with pytest.raises(ValidationFailed):
+            Route.create(**args)  # type: ignore[arg-type]
+
+
+def test_route_change_guards_riders() -> None:
+    route = _route()
+    keep = {"name": "Lekki", "vehicle_plate": None, "driver_id": None}
+    with pytest.raises(ValidationFailed):
+        route.change(**keep, capacity=5, active=True, riders=6)  # type: ignore[arg-type]
+    with pytest.raises(InvalidStateTransition):
+        route.change(**keep, capacity=30, active=False, riders=1)  # type: ignore[arg-type]
+    route.change(**keep, capacity=6, active=False, riders=0)  # type: ignore[arg-type]
+    assert (route.capacity, route.active) == (6, False)
+
+
+def test_stop_position_range() -> None:
+    with pytest.raises(ValidationFailed):
+        Stop.add(
+            tenant_id=TENANT,
+            route_id=uuid4(),
+            name="Gate",
+            position=41,
+            morning_at=None,
+            afternoon_at=None,
+            landmark=None,
+        )
+
+
+@pytest.mark.parametrize(
+    ("previous", "kind", "ok"),
+    [
+        (None, BoardingKind.BOARDED, True),
+        (None, BoardingKind.ABSENT, True),
+        (None, BoardingKind.DROPPED, False),
+        (BoardingKind.ABSENT, BoardingKind.BOARDED, True),
+        (BoardingKind.ABSENT, BoardingKind.ABSENT, False),
+        (BoardingKind.BOARDED, BoardingKind.BOARDED, False),
+        (BoardingKind.BOARDED, BoardingKind.DROPPED, True),
+        (BoardingKind.DROPPED, BoardingKind.BOARDED, False),
+    ],
+)
+def test_boarding_order(previous: BoardingKind | None, kind: BoardingKind, ok: bool) -> None:
+    def record() -> Boarding:
+        return Boarding.record(
+            tenant_id=TENANT,
+            student_id=STUDENT,
+            route_id=uuid4(),
+            stop_id=None,
+            direction=Direction.TO_SCHOOL,
+            kind=kind,
+            previous=previous,
+            day=TODAY,
+            by=BY,
+            now=NOW,
+        )
+
+    if ok:
+        assert record().kind is kind
+    else:
+        with pytest.raises(InvalidStateTransition):
+            record()

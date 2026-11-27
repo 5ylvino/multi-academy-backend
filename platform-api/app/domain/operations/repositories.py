@@ -7,12 +7,20 @@ opens it through the encryption port.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import date, datetime
 from typing import Protocol
 from uuid import UUID
 
 from app.domain.operations.clinic import Outcome
 from app.domain.operations.gate import Collector, Release, Visit
+from app.domain.operations.transport import (
+    Assignment,
+    Boarding,
+    BoardingKind,
+    Direction,
+    Route,
+    Stop,
+)
 from app.domain.shared.value_objects import Page
 
 
@@ -95,3 +103,59 @@ class GateRepository(Protocol):
     async def visits(
         self, *, on_site_only: bool, since: datetime | None, cursor: str | None, limit: int
     ) -> Page[Visit]: ...
+
+
+class TransportRepository(Protocol):
+    async def add_route(self, route: Route) -> None: ...
+
+    async def get_route(self, route_id: UUID, *, for_update: bool = False) -> Route | None: ...
+
+    async def route_by_code(self, code: str) -> Route | None: ...
+
+    async def save_route(self, route: Route) -> None: ...
+
+    async def routes(self, *, include_inactive: bool) -> list[Route]: ...
+
+    async def routes_driven_by(self, driver_id: UUID) -> list[Route]: ...
+
+    async def rider_counts(self) -> dict[UUID, int]:
+        """Students assigned to each route."""
+        ...
+
+    async def add_stop(self, stop: Stop) -> None: ...
+
+    async def get_stop(self, stop_id: UUID) -> Stop | None: ...
+
+    async def save_stop(self, stop: Stop) -> None: ...
+
+    async def stops(self, route_id: UUID) -> list[Stop]:
+        """Active stops, in order along the route."""
+        ...
+
+    async def stop_in_use(self, stop_id: UUID) -> bool: ...
+
+    async def assignment(self, student_id: UUID) -> Assignment | None: ...
+
+    async def save_assignment(self, assignment: Assignment) -> None:
+        """Insert or replace the student's assignment."""
+        ...
+
+    async def remove_assignment(self, student_id: UUID) -> None: ...
+
+    async def assignments(self, route_id: UUID) -> list[Assignment]: ...
+
+    async def add_boarding(self, boarding: Boarding) -> None: ...
+
+    async def last_events(
+        self, route_id: UUID, day: date, direction: Direction
+    ) -> dict[UUID, Boarding]:
+        """Each student's latest event on this trip, by student."""
+        ...
+
+    async def last_event(
+        self, student_id: UUID, day: date, direction: Direction
+    ) -> BoardingKind | None: ...
+
+    async def boardings(
+        self, *, student_id: UUID, since: datetime, cursor: str | None, limit: int
+    ) -> Page[Boarding]: ...
