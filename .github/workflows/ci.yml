@@ -30,6 +30,48 @@ jobs:
       - run: npm run build
       - run: npm test -- --runInBand
 
+  platform-api:
+    name: Platform API (lint, types, layers, tests)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: platform-api
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: masms_owner
+          POSTGRES_PASSWORD: owner
+          POSTGRES_DB: masms_test
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U masms_owner -d masms_test"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports: ["6379:6379"]
+        options: --health-cmd "redis-cli ping" --health-interval 5s --health-retries 10
+    env:
+      TEST_DATABASE_URL: postgresql+asyncpg://masms_app:app@localhost:5432/masms_test
+      TEST_MIGRATION_DATABASE_URL: postgresql+asyncpg://masms_owner:owner@localhost:5432/masms_test
+      TEST_REDIS_URL: redis://localhost:6379/15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+          cache-dependency-glob: platform-api/uv.lock
+      - run: uv sync --frozen --python 3.12
+      - name: Create the non-superuser app role (RLS applies to it)
+        run: PGPASSWORD=owner psql -h localhost -U masms_owner -d masms_test -c "CREATE ROLE masms_app LOGIN PASSWORD 'app' NOSUPERUSER NOBYPASSRLS"
+      - run: uv run ruff format --check src tests
+      - run: uv run ruff check src tests
+      - run: uv run mypy
+      - run: uv run lint-imports
+      - run: uv run pytest -q --cov --cov-fail-under=80
+      - name: Docker image builds
+        run: docker build -t platform-api:ci .
+
   python:
     name: Python tests (${{ matrix.service }})
     runs-on: ubuntu-latest

@@ -1,0 +1,61 @@
+# Local development stack for the platform API. Production uses the same image with managed
+# Postgres (with PgBouncer and replicas) and a Redis cluster.
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: masms_owner
+      POSTGRES_PASSWORD: owner
+      POSTGRES_DB: masms
+    ports: ["127.0.0.1:5432:5432"]
+    volumes:
+      - pg-data:/var/lib/postgresql/data
+      - ./deploy/postgres/init.sql:/docker-entrypoint-initdb.d/10-roles.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U masms_owner -d masms"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["127.0.0.1:6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      retries: 10
+
+  migrate:
+    build: .
+    command: ["alembic", "upgrade", "head"]
+    environment:
+      MASMS_ENVIRONMENT: development
+      MASMS_MIGRATION_DATABASE_URL: postgresql+asyncpg://masms_owner:owner@postgres:5432/masms
+    depends_on:
+      postgres: {condition: service_healthy}
+
+  api:
+    build: .
+    env_file: [.env]
+    environment:
+      MASMS_ENVIRONMENT: development
+      MASMS_DATABASE_URL: postgresql+asyncpg://masms_app:app@postgres:5432/masms
+      MASMS_REDIS_URL: redis://redis:6379/0
+    ports: ["127.0.0.1:8000:8000"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+
+  worker:
+    build: .
+    command: ["python", "-m", "masms.presentation.workers.outbox"]
+    env_file: [.env]
+    environment:
+      MASMS_ENVIRONMENT: development
+      MASMS_DATABASE_URL: postgresql+asyncpg://masms_app:app@postgres:5432/masms
+      MASMS_REDIS_URL: redis://redis:6379/0
+    depends_on:
+      migrate: {condition: service_completed_successfully}
+      redis: {condition: service_healthy}
+
+volumes:
+  pg-data:

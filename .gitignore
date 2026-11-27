@@ -53,3 +53,5 @@
 
 
 VPS-note.sh
+# Local Redis snapshots
+**/dump.rdb

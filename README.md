@@ -14,6 +14,12 @@ Never commit service `.env` files or credentials. Copy each service's
 `.env.example` and configure it locally; the root `.gitignore` protects local
 environment files, virtual environments, dependencies, and build output.
 
+## Rebuild in progress
+
+`platform-api/` is the new single FastAPI server in clean architecture. It replaces the services
+below feature by feature; until each frontend switches over, the existing services keep running.
+See [platform-api/README.md](./platform-api/README.md).
+
 ## Services
 
 | Directory | Port | Role | Local run |

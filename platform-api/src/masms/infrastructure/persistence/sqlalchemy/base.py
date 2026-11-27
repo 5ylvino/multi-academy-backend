@@ -1,0 +1,31 @@
+"""Declarative base with a stable naming convention, so Alembic diffs stay deterministic."""
+
+from __future__ import annotations
+
+from sqlalchemy import MetaData
+from sqlalchemy.orm import DeclarativeBase
+
+NAMING_CONVENTION = {
+    "ix": "ix_%(column_0_label)s",
+    "uq": "uq_%(table_name)s_%(column_0_name)s",
+    "ck": "ck_%(table_name)s_%(constraint_name)s",
+    "fk": "fk_%(table_name)s_%(column_0_name)s_%(referred_table_name)s",
+    "pk": "pk_%(table_name)s",
+}
+
+
+class Base(DeclarativeBase):
+    metadata = MetaData(naming_convention=NAMING_CONVENTION)
+
+
+#: Tables protected by row-level security on ``tenant_id``. Migrations enable RLS on each,
+#: and a test asserts that every table with a ``tenant_id`` column is either here or allow-listed.
+TENANT_SCOPED_TABLES: tuple[str, ...] = ("school_users", "email_verifications")
+
+#: Tables that carry ``tenant_id`` but are registry or platform data, read before a tenant is known.
+TENANT_REGISTRY_TABLES: tuple[str, ...] = (
+    "auth_sessions",
+    "tenant_flag_overrides",
+    "outbox_events",
+    "audit_events",
+)

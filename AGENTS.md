@@ -4,6 +4,7 @@ This repo is a **monorepo**. When work is inside a service directory, read that 
 
 | Directory | Agent guide |
 |-----------|-------------|
+| `platform-api/` (new single FastAPI server, replaces the services below) | [AGENTS.md](./platform-api/AGENTS.md) |
 | `control-system-server/` | [AGENTS.md](./control-system-server/AGENTS.md) |
 | `web-server/` | [AGENTS.md](./web-server/AGENTS.md) |
 | `ai-service/` | [AGENTS.md](./ai-service/AGENTS.md) |
