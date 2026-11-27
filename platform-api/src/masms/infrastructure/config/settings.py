@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     default_plan_code: str = "starter"
     trial_days: int = 30
 
+    #: Public base URL of the school web app; invite and reset links point here.
+    school_app_url: str = "http://localhost:3000"
+
     email_provider: str = "log"  # "log" | "smtp"
     email_from_address: str = "no-reply@mas.ng"
     email_from_name: str = "MA-SMS"

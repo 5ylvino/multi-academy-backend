@@ -9,7 +9,12 @@ from types import TracebackType
 from typing import Any, Protocol, Self
 from uuid import UUID
 
-from masms.domain.identity.repositories import RefreshSessionRepository, UserRepository
+from masms.domain.academics.repositories import AcademicsRepository
+from masms.domain.identity.repositories import (
+    InviteRepository,
+    RefreshSessionRepository,
+    UserRepository,
+)
 from masms.domain.identity.roles import Realm
 from masms.domain.platform.repositories import FeatureFlagRepository, PlanRepository
 from masms.domain.shared.entity import AggregateRoot
@@ -126,6 +131,12 @@ class UnitOfWork(Protocol):
 
     @property
     def plans(self) -> PlanRepository: ...
+
+    @property
+    def invites(self) -> InviteRepository: ...
+
+    @property
+    def academics(self) -> AcademicsRepository: ...
 
     async def __aenter__(self) -> Self: ...
 

@@ -14,7 +14,9 @@ from masms.domain.shared.entity import AggregateRoot
 from masms.domain.shared.events import DomainEvent
 from masms.domain.shared.ids import new_id
 from masms.infrastructure.persistence.models.system import AuditEventRow, OutboxEventRow
+from masms.infrastructure.persistence.repositories.academics import SqlAcademicsRepository
 from masms.infrastructure.persistence.repositories.identity import (
+    SqlInviteRepository,
     SqlRefreshSessionRepository,
     SqlUserRepository,
 )
@@ -68,6 +70,8 @@ class SqlAlchemyUnitOfWork:
         self.verifications = SqlEmailVerificationRepository(s)
         self.flags = SqlFeatureFlagRepository(s)
         self.plans = SqlPlanRepository(s)
+        self.invites = SqlInviteRepository(s)
+        self.academics = SqlAcademicsRepository(s, self._scope)
         return self
 
     async def __aexit__(

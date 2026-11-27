@@ -20,7 +20,17 @@ class Base(DeclarativeBase):
 
 #: Tables protected by row-level security on ``tenant_id``. Migrations enable RLS on each,
 #: and a test asserts that every table with a ``tenant_id`` column is either here or allow-listed.
-TENANT_SCOPED_TABLES: tuple[str, ...] = ("school_users", "email_verifications")
+TENANT_SCOPED_TABLES: tuple[str, ...] = (
+    "school_users",
+    "email_verifications",
+    "user_invites",
+    "academic_sessions",
+    "academic_terms",
+    "academic_classes",
+    "academic_subjects",
+    "academic_class_subjects",
+    "academic_enrolments",
+)
 
 #: Tables that carry ``tenant_id`` but are registry or platform data, read before a tenant is known.
 TENANT_REGISTRY_TABLES: tuple[str, ...] = (

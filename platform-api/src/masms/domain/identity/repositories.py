@@ -6,9 +6,10 @@ from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from masms.domain.identity.invite import UserInvite
 from masms.domain.identity.session import RefreshSession
 from masms.domain.identity.user import UserAccount
-from masms.domain.shared.value_objects import EmailAddress
+from masms.domain.shared.value_objects import EmailAddress, Page
 
 
 class UserRepository(Protocol):
@@ -25,6 +26,24 @@ class UserRepository(Protocol):
     async def add(self, user: UserAccount) -> None: ...
 
     async def save(self, user: UserAccount) -> None: ...
+
+    async def list_school_users(
+        self,
+        tenant_id: UUID,
+        *,
+        role: str | None,
+        search: str | None,
+        cursor: str | None,
+        limit: int,
+    ) -> Page[UserAccount]: ...
+
+
+class InviteRepository(Protocol):
+    async def add(self, invite: UserInvite) -> None: ...
+
+    async def get_by_token_hash(self, tenant_id: UUID, token_hash: str) -> UserInvite | None: ...
+
+    async def save(self, invite: UserInvite) -> None: ...
 
 
 class RefreshSessionRepository(Protocol):

@@ -2,21 +2,24 @@
 
 from __future__ import annotations
 
+import base64
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select, update
+from sqlalchemy import or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from masms.domain.identity.invite import UserInvite
 from masms.domain.identity.roles import Realm
 from masms.domain.identity.session import RefreshSession
 from masms.domain.identity.user import UserAccount, UserStatus
-from masms.domain.shared.errors import Conflict
-from masms.domain.shared.value_objects import EmailAddress
+from masms.domain.shared.errors import Conflict, ValidationFailed
+from masms.domain.shared.value_objects import EmailAddress, Page
 from masms.infrastructure.persistence.models.identity import (
     AuthSessionRow,
     PlatformUserRow,
     SchoolUserRow,
+    UserInviteRow,
 )
 from masms.infrastructure.persistence.repositories.scope_state import ScopeState
 
@@ -160,6 +163,85 @@ class SqlUserRepository:
         if result.rowcount != 1:  # type: ignore[attr-defined]
             raise Conflict(_STALE)
         user.version += 1
+
+    async def list_school_users(
+        self,
+        tenant_id: UUID,
+        *,
+        role: str | None,
+        search: str | None,
+        cursor: str | None,
+        limit: int,
+    ) -> Page[UserAccount]:
+        stmt = (
+            select(SchoolUserRow)
+            .where(SchoolUserRow.tenant_id == tenant_id)
+            .order_by(SchoolUserRow.id.desc())
+            .limit(limit + 1)
+        )
+        if role:
+            stmt = stmt.where(SchoolUserRow.roles.contains([role]))
+        if search:
+            pattern = f"%{search.replace('%', '').replace('_', '')}%"
+            stmt = stmt.where(
+                or_(SchoolUserRow.full_name.ilike(pattern), SchoolUserRow.email.ilike(pattern))
+            )
+        if cursor:
+            try:
+                after = UUID(bytes=base64.urlsafe_b64decode(cursor + "=" * (-len(cursor) % 4)))
+            except (ValueError, TypeError) as exc:
+                raise ValidationFailed("Cursor is not valid.", details={"field": "cursor"}) from exc
+            stmt = stmt.where(SchoolUserRow.id < after)
+        rows = list((await self._s.scalars(stmt)).all())
+        more = len(rows) > limit
+        rows = rows[:limit]
+        next_cursor = (
+            base64.urlsafe_b64encode(rows[-1].id.bytes).decode().rstrip("=")
+            if more and rows
+            else None
+        )
+        return Page(items=[_school_to_domain(r) for r in rows], next_cursor=next_cursor)
+
+
+class SqlInviteRepository:
+    def __init__(self, session: AsyncSession) -> None:
+        self._s = session
+
+    async def add(self, invite: UserInvite) -> None:
+        self._s.add(
+            UserInviteRow(
+                tenant_id=invite.tenant_id,
+                id=invite.id,
+                user_id=invite.user_id,
+                token_hash=invite.token_hash,
+                expires_at=invite.expires_at,
+            )
+        )
+        await self._s.flush()
+
+    async def get_by_token_hash(self, tenant_id: UUID, token_hash: str) -> UserInvite | None:
+        row = await self._s.scalar(
+            select(UserInviteRow)
+            .where(UserInviteRow.tenant_id == tenant_id, UserInviteRow.token_hash == token_hash)
+            .with_for_update()
+        )
+        if row is None:
+            return None
+        return UserInvite(
+            id=row.id,
+            tenant_id=row.tenant_id,
+            user_id=row.user_id,
+            token_hash=row.token_hash,
+            expires_at=row.expires_at,
+            accepted_at=row.accepted_at,
+        )
+
+    async def save(self, invite: UserInvite) -> None:
+        await self._s.execute(
+            update(UserInviteRow)
+            .where(UserInviteRow.tenant_id == invite.tenant_id, UserInviteRow.id == invite.id)
+            .values(accepted_at=invite.accepted_at)
+        )
 
 
 def _session_to_domain(row: AuthSessionRow) -> RefreshSession:

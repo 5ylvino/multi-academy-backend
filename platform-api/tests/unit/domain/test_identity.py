@@ -79,7 +79,19 @@ def test_session_rotation_marks_old_inactive() -> None:
     assert not second.is_active(NOW + timedelta(days=2))
 
 
-@pytest.mark.parametrize("pw", ["short", "password123", "aaaaaaaaaaaa", "teacher-rocks-99"])
+@pytest.mark.parametrize(
+    "pw",
+    [
+        "short",
+        "password123",
+        "aaaaaaaaaaaa",
+        "teacher-rocks-99",
+        "password12",
+        "Password2026!",
+        "!!School2026",
+        "12345678901",
+    ],
+)
 def test_weak_passwords_rejected(pw: str) -> None:
     with pytest.raises(ValidationFailed):
         validate_password(pw, email="teacher@school.ng")

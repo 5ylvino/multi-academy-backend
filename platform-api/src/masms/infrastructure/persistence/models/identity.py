@@ -6,7 +6,6 @@ from datetime import datetime
 from uuid import UUID
 
 from sqlalchemy import (
-    ARRAY,
     Boolean,
     DateTime,
     ForeignKeyConstraint,
@@ -16,7 +15,7 @@ from sqlalchemy import (
     UniqueConstraint,
     text,
 )
-from sqlalchemy.dialects.postgresql import INET
+from sqlalchemy.dialects.postgresql import ARRAY, INET
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -52,6 +51,7 @@ class SchoolUserRow(_UserColumns, Base):
         ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
         UniqueConstraint("tenant_id", "email", name="uq_school_users_tenant_email"),
         Index("ix_school_users_id", "id"),
+        Index("ix_school_users_roles", "roles", postgresql_using="gin"),
     )
 
 
@@ -84,4 +84,27 @@ class AuthSessionRow(Base):
         Index("ix_auth_sessions_family", "family_id"),
         Index("ix_auth_sessions_user", "user_id"),
         Index("ix_auth_sessions_expires", "expires_at"),
+    )
+
+
+class UserInviteRow(Base):
+    __tablename__ = "user_invites"
+
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    user_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    token_hash: Mapped[str] = mapped_column(String(64))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    accepted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=text("now()")
+    )
+
+    __table_args__ = (
+        ForeignKeyConstraint(
+            ["tenant_id", "user_id"],
+            ["school_users.tenant_id", "school_users.id"],
+            ondelete="CASCADE",
+        ),
+        UniqueConstraint("tenant_id", "token_hash", name="uq_user_invites_tenant_token"),
     )

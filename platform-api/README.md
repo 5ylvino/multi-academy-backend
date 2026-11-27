@@ -85,6 +85,16 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET/PUT | `/api/v1/platform/flags`, `/flags/{key}` | `flags:read` / `flags:write` |
 | PUT | `/api/v1/platform/tenants/{id}/flags/{key}` | `flags:write` |
 | GET/PUT | `/api/v1/platform/plans`, `/plans/{code}` | `plans:read` / `plans:write` |
+| POST | `/api/v1/users` | `users:create` (+ `roles:assign` for leadership roles) |
+| GET | `/api/v1/users?role=&q=&cursor=&limit=` | `users:read` |
+| POST | `/api/v1/schools/{slug}/invites/accept` | public: invite token + new password |
+| GET/POST | `/api/v1/academics/sessions` | `dashboards:view` / `academic_sessions:manage` |
+| POST | `/api/v1/academics/sessions/{id}/terms`, `/terms/{id}/current` | `academic_terms:manage` |
+| GET/POST/PATCH | `/api/v1/academics/classes`, `/classes/{id}` | `classes:read` / `:create` / `:update` |
+| PUT/DELETE | `/api/v1/academics/classes/{id}/subjects/{subject_id}` | `classes:update` |
+| GET/POST | `/api/v1/academics/subjects` | `subjects:read` / `subjects:create` |
+| POST | `/api/v1/academics/enrolments` | `students:update` |
+| GET | `/api/v1/academics/classes/{id}/roster` | `students:read` |
 | GET | `/health/live`, `/health/ready`, `/metrics` | infrastructure |
 
 Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.

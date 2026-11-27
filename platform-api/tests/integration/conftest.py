@@ -70,6 +70,12 @@ class Mailbox:
                 return str(payload["code"])
         raise AssertionError("no verification code was sent")
 
+    def last_invite_token(self, email: str) -> str:
+        for name, payload in reversed(self.events):
+            if name == "identity.user_invited" and payload["email"] == email:
+                return str(payload["token"])
+        raise AssertionError(f"no invite was sent to {email}")
+
 
 @pytest.fixture
 def settings() -> Settings:
@@ -112,7 +118,10 @@ def mailbox(container: Container) -> Mailbox:
     box = Mailbox()
     container.outbox = OutboxRelay(
         container.session_factory,
-        {"tenancy.verification_code_issued": [box.handler("tenancy.verification_code_issued")]},
+        {
+            name: [box.handler(name)]
+            for name in ("tenancy.verification_code_issued", "identity.user_invited")
+        },
     )
     return box
 

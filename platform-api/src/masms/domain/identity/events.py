@@ -28,3 +28,15 @@ class RefreshTokenReuseDetected(DomainEvent):
     name: ClassVar[str] = "identity.refresh_token_reuse_detected"
     user_id: UUID
     family_id: UUID
+
+
+@dataclass(frozen=True, kw_only=True)
+class UserInvited(DomainEvent):
+    name: ClassVar[str] = "identity.user_invited"
+    sensitive_fields: ClassVar[frozenset[str]] = frozenset({"token"})
+    user_id: UUID
+    email: str
+    full_name: str
+    school_name: str
+    school_slug: str
+    token: str

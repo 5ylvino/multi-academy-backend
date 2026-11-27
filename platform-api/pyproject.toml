@@ -123,4 +123,9 @@ allow_indirect_imports = true
 [[tool.importlinter.contracts]]
 name = "Domain features are independent"
 type = "independence"
-modules = ["masms.domain.identity", "masms.domain.tenancy", "masms.domain.platform"]
+modules = [
+  "masms.domain.identity",
+  "masms.domain.tenancy",
+  "masms.domain.platform",
+  "masms.domain.academics",
+]

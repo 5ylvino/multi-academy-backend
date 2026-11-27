@@ -24,8 +24,15 @@ from masms.infrastructure.providers.email.senders import LogEmailSender, SmtpEma
 from masms.infrastructure.security.passwords import Argon2PasswordHasher
 from masms.infrastructure.security.secrets import CryptoSecretGenerator, HmacSecretHasher
 from masms.infrastructure.security.tokens import JwtTokenService, generate_private_key_pem
+from masms.use_cases.academics.structure import AcademicCalendar, ClassesAndSubjects, Enrolments
 from masms.use_cases.identity.create_platform_user import CreatePlatformUser
 from masms.use_cases.identity.get_current_user import GetCurrentUser
+from masms.use_cases.identity.manage_school_users import (
+    AcceptInvite,
+    InviteSchoolUser,
+    ListSchoolUsers,
+)
+from masms.use_cases.identity.notifications import SendInviteEmail
 from masms.use_cases.identity.refresh_session import RefreshSessionUseCase
 from masms.use_cases.identity.session_issuer import SessionIssuer
 from masms.use_cases.identity.sign_in import SignIn
@@ -75,6 +82,12 @@ class UseCases:
     tenant_features: ResolveTenantFeatures
     list_plans: ListPlans
     upsert_plan: UpsertPlan
+    invite_school_user: InviteSchoolUser
+    accept_invite: AcceptInvite
+    list_school_users: ListSchoolUsers
+    academic_calendar: AcademicCalendar
+    classes_and_subjects: ClassesAndSubjects
+    enrolments: Enrolments
 
 
 @dataclass
@@ -255,11 +268,29 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
         tenant_features=features,
         list_plans=ListPlans(uow_factory=uow),
         upsert_plan=UpsertPlan(uow_factory=uow, cache=cache),
+        invite_school_user=InviteSchoolUser(
+            uow_factory=uow, secret_hasher=secret_hasher, secrets=secrets, clock=clock
+        ),
+        accept_invite=AcceptInvite(
+            uow_factory=uow,
+            hasher=hasher,
+            secret_hasher=secret_hasher,
+            issuer=school_issuer,
+            limiter=limiter,
+            clock=clock,
+        ),
+        list_school_users=ListSchoolUsers(uow_factory=uow),
+        academic_calendar=AcademicCalendar(uow_factory=uow, clock=clock),
+        classes_and_subjects=ClassesAndSubjects(uow_factory=uow),
+        enrolments=Enrolments(uow_factory=uow, clock=clock),
     )
 
     email = _email_sender(settings)
     handlers: dict[str, list[Handler]] = {
         "tenancy.verification_code_issued": [SendVerificationCodeEmail(email=email)],
+        "identity.user_invited": [
+            SendInviteEmail(email=email, school_app_url=settings.school_app_url)
+        ],
     }
     outbox = OutboxRelay(session_factory, handlers)
     return Container(
