@@ -4,7 +4,7 @@ The handover file for this repository. **Read it first in every session, and upd
 of every task** (what changed, what's next, any new decision). Keep it short and current: replace
 stale lines rather than appending history forever. Detailed history lives in git and in PR #1.
 
-Last updated: 27 Nov 2026, after the inventory commit. Next: payroll.
+Last updated: 27 Nov 2026, after commit `b3eb2c2` (inventory). Next: payroll.
 
 ---
 
@@ -77,7 +77,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
 | `ce575ff` | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
-| (this commit) | Inventory: stock items with units, SKU, reorder levels and location; append-only movements (receive with cost, issue to a person, return, write-off, count adjustment) with balance after each; never below zero; low-stock flag and event; store summary with value |
+| `b3eb2c2` | Inventory: stock items with units, SKU, reorder levels and location; append-only movements (receive with cost, issue to a person, return, write-off, count adjustment) with balance after each; never below zero; low-stock flag and event; store summary with value |
 | `a6ae592` | Budgets and expenses: school expense categories, a budget per category per term, expenses recorded by one person and approved by another (DB-enforced), posted to the ledger, over-budget approval needs a note, voids reverse, receipts attached, budget-against-actual report |
 | `39f1562` | Platform billing: plan prices (base + per student, per term by default), a subscription per school, invoices issued a week ahead, reminders, 14-day grace then suspension, payment (platform Paystack account, recorded bank transfer, or waiver) reinstates only billing suspensions; emailed pay link that works while suspended; console list/record/void/change plan/run; worker every 15 minutes |
 | `5f285a9` | Audit trail: every change recorded with who, what, field changes, request id, IP and device; append-only and RLS-protected; search, CSV export and plain-English labels for school leaders and owner staff; tests that fail when a new use case forgets to audit |
