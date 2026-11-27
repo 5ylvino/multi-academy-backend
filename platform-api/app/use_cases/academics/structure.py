@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import date, datetime
+from typing import Any
 from uuid import UUID
 
 from app.domain.academics.structure import (
@@ -19,8 +20,22 @@ from app.domain.academics.structure import (
 )
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.shared.errors import Conflict, NotFound, ValidationFailed
+from app.use_cases.shared import audit
 from app.use_cases.shared.ports import AuditEntry, Clock, Scope, UnitOfWork, UnitOfWorkFactory
 from app.use_cases.shared.principal import Principal
+
+
+def _class_fields(school_class: SchoolClass) -> dict[str, Any]:
+    return {
+        "name": school_class.name,
+        "code": school_class.code,
+        "school_level": school_class.school_level.value,
+        "capacity": school_class.capacity,
+        "class_teacher_id": str(school_class.class_teacher_id)
+        if school_class.class_teacher_id
+        else None,
+        "active": school_class.active,
+    }
 
 
 def _level(value: str) -> SchoolLevelCode:
@@ -158,6 +173,17 @@ class AcademicCalendar:
                 if existing.starts_on < session.ends_on and session.starts_on < existing.ends_on:
                     raise Conflict("Sessions can't overlap.", details={"overlaps": existing.name})
             await uow.academics.add_session(session)
+            uow.audit(
+                audit.by(
+                    actor,
+                    "academics.session_created",
+                    target_type="academic_session",
+                    target_id=session.id,
+                    name=session.name,
+                    starts_on=session.starts_on.isoformat(),
+                    ends_on=session.ends_on.isoformat(),
+                )
+            )
             await uow.commit()
         return SessionView.of(session, [])
 
@@ -192,6 +218,18 @@ class AcademicCalendar:
                 if other.starts_on < term.ends_on and term.starts_on < other.ends_on:
                     raise Conflict("Terms can't overlap.", details={"overlaps": other.name})
             await uow.academics.add_term(term)
+            uow.audit(
+                audit.by(
+                    actor,
+                    "academics.term_added",
+                    target_type="term",
+                    target_id=term.id,
+                    session_id=str(session.id),
+                    code=term.code.value,
+                    starts_on=term.starts_on.isoformat(),
+                    ends_on=term.ends_on.isoformat(),
+                )
+            )
             await uow.commit()
         return TermView.of(term)
 
@@ -277,6 +315,15 @@ class ClassesAndSubjects:
                 raise Conflict("A class with this code already exists.", details={"field": "code"})
             await self._ensure_teacher(uow, cmd.class_teacher_id)
             await uow.academics.add_class(school_class)
+            uow.audit(
+                audit.by(
+                    actor,
+                    "academics.class_created",
+                    target_type="class",
+                    target_id=school_class.id,
+                    **_class_fields(school_class),
+                )
+            )
             await uow.commit()
         return ClassView.of(school_class)
 
@@ -297,6 +344,7 @@ class ClassesAndSubjects:
             school_class = await uow.academics.get_class(class_id)
             if school_class is None:
                 raise NotFound("Class not found.")
+            before = _class_fields(school_class)
             if name is not None:
                 school_class.rename(name)
             if capacity is not None:
@@ -309,6 +357,17 @@ class ClassesAndSubjects:
             if active is not None:
                 school_class.active = active
             await uow.academics.save_class(school_class)
+            diff = audit.changes(before, _class_fields(school_class))
+            if diff:
+                uow.audit(
+                    audit.by(
+                        actor,
+                        "academics.class_updated",
+                        target_type="class",
+                        target_id=school_class.id,
+                        changes=diff,
+                    )
+                )
             await uow.commit()
         return ClassView.of(school_class)
 
@@ -345,6 +404,17 @@ class ClassesAndSubjects:
                     details={"field": "code"},
                 )
             await uow.academics.add_subject(subject)
+            uow.audit(
+                audit.by(
+                    actor,
+                    "academics.subject_created",
+                    target_type="subject",
+                    target_id=subject.id,
+                    name=subject.name,
+                    code=subject.code,
+                    school_level=subject.school_level.value,
+                )
+            )
             await uow.commit()
         return SubjectView.of(subject)
 
@@ -388,6 +458,17 @@ class ClassesAndSubjects:
             else:
                 await uow.academics.unlink_subject(class_id, subject_id)
                 school_class.subject_ids.discard(subject_id)
+            uow.audit(
+                audit.by(
+                    actor,
+                    "academics.subject_linked" if linked else "academics.subject_unlinked",
+                    target_type="class",
+                    target_id=class_id,
+                    subject_id=str(subject_id),
+                    subject_code=subject.code,
+                    teacher_id=str(teacher_id) if linked and teacher_id else None,
+                )
+            )
             await uow.commit()
         return ClassView.of(school_class)
 
@@ -428,6 +509,17 @@ class Enrolments:
                     return EnrolmentView.of(existing)
                 existing.status = EnrolmentStatus.WITHDRAWN
                 await uow.academics.save_enrolment(existing)
+                uow.audit(
+                    audit.by(
+                        actor,
+                        "academics.student_withdrawn",
+                        target_type="student",
+                        target_id=student_id,
+                        class_id=str(existing.class_id),
+                        session_id=str(existing.session_id),
+                        reason="moved_class",
+                    )
+                )
             if not school_class.has_room(
                 await uow.academics.count_active_in_class(class_id, term.session_id)
             ):
@@ -440,6 +532,17 @@ class Enrolments:
                 now=self._clock.now(),
             )
             await uow.academics.add_enrolment(enrolment)
+            uow.audit(
+                audit.by(
+                    actor,
+                    "academics.student_enrolled",
+                    target_type="student",
+                    target_id=student_id,
+                    class_id=str(class_id),
+                    class_code=school_class.code,
+                    session_id=str(term.session_id),
+                )
+            )
             await uow.commit()
         return EnrolmentView.of(enrolment)
 

@@ -52,11 +52,18 @@ class AuditEventRow(Base):
     metadata_: Mapped[dict[str, Any]] = mapped_column(
         "metadata", JSONB, server_default=text("'{}'")
     )
+    request_id: Mapped[str | None] = mapped_column(String(64))
+    ip_address: Mapped[str | None] = mapped_column(String(45))
+    user_agent: Mapped[str | None] = mapped_column(String(256))
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=text("now()")
     )
 
+    # Append-only: the app role may only INSERT and SELECT, and a trigger refuses UPDATE, DELETE
+    # and TRUNCATE for every role (migration 0007). Rows are protected by RLS per school.
     __table_args__ = (
-        Index("ix_audit_events_tenant_created", "tenant_id", "created_at"),
-        Index("ix_audit_events_target", "target_type", "target_id"),
+        Index("ix_audit_events_tenant_time", "tenant_id", "created_at", "id"),
+        Index("ix_audit_events_time", "created_at", "id"),
+        Index("ix_audit_events_actor", "actor_id", "created_at"),
+        Index("ix_audit_events_target", "target_type", "target_id", "created_at"),
     )

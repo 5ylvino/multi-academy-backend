@@ -4,7 +4,7 @@ The handover file for this repository. **Read it first in every session, and upd
 of every task** (what changed, what's next, any new decision). Keep it short and current: replace
 stale lines rather than appending history forever. Detailed history lives in git and in PR #1.
 
-Last updated: 27 Nov 2026, after commit `6678788`.
+Last updated: 27 Nov 2026, audit trail commit (migration 0007).
 
 ---
 
@@ -76,8 +76,9 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `524a6a2` | School fees: fee catalog, repeatable term billing runs, invoices, scholarships, idempotent manual payments, automatic credit settlement, voids, reversals, two-person refunds, statements, append-only double-entry ledger |
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
+| (this commit) | Audit trail: every change recorded with who, what, field changes, request id, IP and device; append-only and RLS-protected; search, CSV export and plain-English labels for school leaders and owner staff; tests that fail when a new use case forgets to audit |
 
-**Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0006`:
+**Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0007`:
 
 1. `0001` foundation, identity, tenancy, platform
 2. `0002` school users, invites, academics
@@ -85,9 +86,10 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 4. `0004` attendance
 5. `0005` school fees (ledger tables append-only, balance trigger)
 6. `0006` guardians and payment proofs
+7. `0007` audit trail (request columns, RLS, append-only triggers, search indexes)
 
-**Quality at last run:** 146 tests pass, coverage 90%, ruff, mypy --strict and the 5
-import-linter contracts clean. CI green on `6678788`.
+**Quality at last run:** 220 tests pass, coverage 90%, ruff, mypy --strict and the 5
+import-linter contracts clean.
 
 **Not verified:** the Docker image was not rebuilt after the `app/` move (no Docker in the cloud
 session). Build it once locally: `docker compose up --build`.
@@ -96,15 +98,17 @@ session). Build it once locally: `docker compose up --build`.
 
 Next, in order:
 
-1. **Online payments**: Paystack and Flutterwave adapters behind one gateway port, signed webhooks
-   processed once, daily reconciliation. Then flip `GATEWAY_READY` in
+1. **Online payments**: **Paystack only for now**, behind a provider-neutral gateway port so the
+   provider can be switched or another added (Flutterwave maybe later) without touching use cases.
+   Signed webhooks processed once, daily reconciliation. Then flip `GATEWAY_READY` in
    `app/use_cases/finance/catalog.py` so schools can switch online payments on.
 2. **Platform billing**: schools pay the platform for their plan.
 3. Rest of Phase 2: budgets, inventory, payroll. Hardening pass: console tables to their own
    schema and DB role.
 4. **Phase 3** (school life): communication, safeguarding, operations, assessment, portal,
    reports. MFA mandatory for director, school admin, bursar, IT admin.
-5. **Phase 4** (growth): tutoring, intelligence (AI).
+5. **Phase 4** (growth): tutoring, intelligence (AI). AI tutor requirements from the owner
+   (27 Nov 2026), see section 8.
 6. **Phase 5**: data migration from the old per-school databases, cutover, hosting decision.
 7. Frontends: owner console, then school app.
 
@@ -141,6 +145,11 @@ The full plan is the Claude Doc "MA-SMS Rebuild Plan"
 | Staff check-in: device passkey inside a geofence, fallback rotating hashed single-use code | Replaces a shared manual code that was easy to abuse |
 | Dev keys derived from the pepper; production refuses to start without real keys or with MFA off | Tokens work across workers in dev; production can't run insecurely by accident |
 | Postgres trigram indexes for name search | Good enough at scale without a separate search engine, unless load tests say otherwise |
+| **Audit trail written in the same transaction as each change**; append-only for every role (grants + triggers), RLS per school, 7-year retention floor | Owner asked for data auditing. Same-transaction writes mean the log is never ahead of or behind the data |
+| A test fails if a use case commits without an audit entry or an explicit `# audit: not needed.` note | Keeps the trail complete as features are added |
+| Failed sign-ins recorded only for real accounts | Unknown emails would let anyone flood the trail; the rate limiter and access log cover them |
+| Opening a payment receipt and downloading the log are recorded | Both expose personal or financial data |
+| **Paystack first; payment providers behind one gateway port** | Owner's choice, and they may switch providers later |
 | Hosting left open until Phase 5 | Owner's call. One VPS can't carry the target load, so it needs a real sizing exercise |
 
 ## 7. Conventions
@@ -176,3 +185,21 @@ The full plan is the Claude Doc "MA-SMS Rebuild Plan"
 - Approach every task production-ready, with the best approach. In-code decisions are ours to
   make; product and hosting decisions are the owner's.
 - After every task: update this file (sections 4, 5 and 6), and the plan doc's progress log.
+
+## 8. Feature requirements captured from the owner
+
+**AI tutor (Phase 4)**
+
+- Tutors a student the way a good human tutor would: explains topics, checks understanding,
+  practises questions, tracks weak areas and prepares the student to pass exams.
+- **Always recommends videos** (mostly YouTube) for each class, subject and topic, with several
+  options to choose from, and says how to use them (what to watch first, what to focus on).
+  The AI finds the videos on the internet itself.
+- **Recommends teachers** to a student, based on what we know about each teacher: subjects they
+  handle, area of specialisation, and how effective they are.
+- Design it to serve a **future standalone tutoring app** for parents and students who don't
+  belong to any school. Not built now, but the tutoring backend must not assume a school: keep
+  tutoring accounts, sessions and content independent of `tenant_id` where it matters.
+- Quality bar: "perfection" in recommendations; they must be relevant to the student's class,
+  subject and topic.
+

@@ -18,6 +18,7 @@ from app.domain.shared.value_objects import EmailAddress, Slug
 from app.domain.tenancy.events import VerificationCodeIssued
 from app.domain.tenancy.tenant import SchoolLevel, Tenant
 from app.domain.tenancy.verification import EmailVerification
+from app.use_cases.shared import audit
 from app.use_cases.shared.ports import (
     Clock,
     PasswordHasher,
@@ -134,6 +135,19 @@ class RegisterSchool:
             uow.publish(
                 VerificationCodeIssued(
                     tenant_id=tenant.id, email=email.value, school_name=tenant.name, code=code
+                )
+            )
+            uow.audit(
+                audit.system(
+                    "tenant.registered",
+                    target_type="tenant",
+                    target_id=tenant.id,
+                    tenant_id=tenant.id,
+                    actor_id=admin.id,
+                    actor_realm=Realm.SCHOOL,
+                    name=tenant.name,
+                    slug=tenant.slug.value,
+                    plan=self._default_plan,
                 )
             )
             await uow.commit()

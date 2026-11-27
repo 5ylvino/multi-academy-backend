@@ -13,9 +13,11 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from app.domain.shared.entity import AggregateRoot
 from app.domain.shared.events import DomainEvent
 from app.domain.shared.ids import new_id
+from app.infrastructure.observability import request_context
 from app.infrastructure.persistence.models.system import AuditEventRow, OutboxEventRow
 from app.infrastructure.persistence.repositories.academics import SqlAcademicsRepository
 from app.infrastructure.persistence.repositories.attendance import SqlAttendanceRepository
+from app.infrastructure.persistence.repositories.audit import SqlAuditLogRepository
 from app.infrastructure.persistence.repositories.finance import SqlFinanceRepository
 from app.infrastructure.persistence.repositories.identity import (
     SqlGuardianRepository,
@@ -80,6 +82,7 @@ class SqlAlchemyUnitOfWork:
         self.attendance = SqlAttendanceRepository(s, self._scope)
         self.academics = SqlAcademicsRepository(s, self._scope)
         self.finance = SqlFinanceRepository(s, self._scope)
+        self.audit_log = SqlAuditLogRepository(s)
         return self
 
     async def __aexit__(
@@ -132,6 +135,7 @@ class SqlAlchemyUnitOfWork:
                     available_at=now,
                 )
             )
+        context = request_context.current()
         for entry in self._audit:
             session.add(
                 AuditEventRow(
@@ -143,6 +147,9 @@ class SqlAlchemyUnitOfWork:
                     target_type=entry.target_type,
                     target_id=entry.target_id,
                     metadata_=_json_safe(dict(entry.metadata)),
+                    request_id=context.request_id,
+                    ip_address=context.ip_address,
+                    user_agent=context.user_agent,
                     created_at=now,
                 )
             )

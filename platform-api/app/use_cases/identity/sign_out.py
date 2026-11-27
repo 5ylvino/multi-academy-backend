@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from app.use_cases.shared import audit
 from app.use_cases.shared.ports import Clock, Scope, SecretHasher, UnitOfWorkFactory
 
 
@@ -28,4 +29,16 @@ class SignOut:
             if session is None:
                 return  # Signing out twice is not an error.
             await uow.sessions.revoke_family(session.family_id, self._clock.now())
+            if session.tenant_id is not None:
+                await uow.enter_tenant(session.tenant_id)
+            uow.audit(
+                audit.system(
+                    "identity.signed_out",
+                    target_type="user",
+                    target_id=session.user_id,
+                    tenant_id=session.tenant_id,
+                    actor_id=session.user_id,
+                    actor_realm=session.realm,
+                )
+            )
             await uow.commit()

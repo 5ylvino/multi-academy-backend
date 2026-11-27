@@ -40,6 +40,7 @@ from app.use_cases.finance.common import (
 )
 from app.use_cases.finance.payments import RECEIPT_SERIES, receipt_number
 from app.use_cases.identity.guardians import is_guardian_or_self
+from app.use_cases.shared import audit
 from app.use_cases.shared.ports import (
     AuditEntry,
     Clock,
@@ -266,8 +267,19 @@ class PaymentProofs:
 
     async def file(self, actor: Principal, proof_id: UUID) -> ProofFileView:
         actor.require_realm(Realm.SCHOOL)
-        async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
+        # Receipts hold bank details, so opening one is recorded like a change.
+        async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
             proof = await self._visible(uow, actor, proof_id)
+            uow.audit(
+                audit.by(
+                    actor,
+                    "finance.payment_proof_file_viewed",
+                    target_type="payment_proof",
+                    target_id=proof.id,
+                    student_id=str(proof.student_id),
+                )
+            )
+            await uow.commit()
         content = await self._store.get(proof.file.key)
         if hashlib.sha256(content).hexdigest() != proof.file.sha256:
             raise Conflict("The stored receipt doesn't match what was uploaded.")
@@ -418,5 +430,14 @@ class PaymentProofs:
                 raise NotFound("Proof of payment not found.")
             proof.withdraw(by=actor.user_id)
             await uow.finance.save_proof(proof)
+            uow.audit(
+                audit.by(
+                    actor,
+                    "finance.payment_proof_withdrawn",
+                    target_type="payment_proof",
+                    target_id=proof.id,
+                    student_id=str(proof.student_id),
+                )
+            )
             await uow.commit()
         return ProofView.of(proof)

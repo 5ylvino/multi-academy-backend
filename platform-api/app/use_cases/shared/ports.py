@@ -140,6 +140,48 @@ class AuditEntry:
     metadata: Mapping[str, Any]
 
 
+@dataclass(frozen=True, slots=True)
+class AuditFilter:
+    """What to search the audit trail for. ``tenant_id`` None with ``platform_only`` means events
+    with no school (owner-console work); None without it means every school (platform scope)."""
+
+    tenant_id: UUID | None = None
+    platform_only: bool = False
+    actor_id: UUID | None = None
+    action_prefix: str | None = None
+    target_type: str | None = None
+    target_id: str | None = None
+    since: datetime | None = None
+    until: datetime | None = None
+    #: Keyset cursor: return events strictly older than (created_at, id).
+    before: tuple[datetime, UUID] | None = None
+    limit: int = 50
+
+
+@dataclass(frozen=True, slots=True)
+class AuditRecord:
+    id: UUID
+    created_at: datetime
+    tenant_id: UUID | None
+    actor_id: UUID | None
+    actor_realm: str | None
+    actor_name: str | None
+    actor_email: str | None
+    action: str
+    target_type: str
+    target_id: str
+    metadata: Mapping[str, Any]
+    request_id: str | None
+    ip_address: str | None
+    user_agent: str | None
+
+
+class AuditLogRepository(Protocol):
+    async def search(self, query: AuditFilter) -> list[AuditRecord]:
+        """Newest first. RLS limits a school scope to its own events."""
+        ...
+
+
 class UnitOfWork(Protocol):
     """One database transaction.
 
@@ -183,6 +225,9 @@ class UnitOfWork(Protocol):
 
     @property
     def finance(self) -> FinanceRepository: ...
+
+    @property
+    def audit_log(self) -> AuditLogRepository: ...
 
     async def __aenter__(self) -> Self: ...
 

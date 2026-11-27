@@ -102,7 +102,12 @@ async def container(migrated: None, settings: Settings) -> AsyncIterator[Contain
                 "AND tablename NOT IN ('alembic_version','plans')"
             )
         ]
-        await conn.execute(f"TRUNCATE {', '.join(tables)} CASCADE")
+        # The audit trail refuses TRUNCATE; only the table owner can lift that, as here, between
+        # tests. Production never runs with the owner role.
+        async with conn.transaction():
+            await conn.execute("ALTER TABLE audit_events DISABLE TRIGGER audit_events_no_truncate")
+            await conn.execute(f"TRUNCATE {', '.join(tables)} CASCADE")
+            await conn.execute("ALTER TABLE audit_events ENABLE TRIGGER audit_events_no_truncate")
         await conn.execute("DELETE FROM plans WHERE code <> 'starter'")
     finally:
         await conn.close()

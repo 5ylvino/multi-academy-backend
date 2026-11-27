@@ -113,6 +113,7 @@ async def test_flags_plan_and_override_reach_bootstrap(
 
     conn = await asyncpg.connect(owner_dsn)
     try:
+        await conn.execute("SET app.rls_bypass = 'on'")  # the audit trail has RLS
         actions = [
             r["action"]
             for r in await conn.fetch("SELECT action FROM audit_events ORDER BY created_at")

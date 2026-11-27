@@ -33,6 +33,7 @@ from app.infrastructure.storage.s3 import S3ObjectStore
 from app.use_cases.academics.structure import AcademicCalendar, ClassesAndSubjects, Enrolments
 from app.use_cases.attendance.registers import StudentRegisters
 from app.use_cases.attendance.staff import StaffAttendance
+from app.use_cases.audit.trail import AuditTrail
 from app.use_cases.finance.billing import Billing
 from app.use_cases.finance.catalog import FinanceCatalog
 from app.use_cases.finance.payments import Payments
@@ -128,6 +129,7 @@ class UseCases:
     statements: Statements
     payment_proofs: PaymentProofs
     guardians: Guardians
+    audit_trail: AuditTrail
 
 
 @dataclass
@@ -400,6 +402,7 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
             limiter=limiter,
         ),
         guardians=Guardians(uow_factory=uow, clock=clock),
+        audit_trail=AuditTrail(uow_factory=uow, clock=clock),
     )
 
     email = _email_sender(settings)

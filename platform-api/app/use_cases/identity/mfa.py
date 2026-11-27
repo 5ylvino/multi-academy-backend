@@ -33,6 +33,7 @@ from app.domain.shared.errors import (
     PermissionDenied,
 )
 from app.domain.shared.value_objects import EmailAddress
+from app.use_cases.identity import sign_in_audit
 from app.use_cases.identity.session_issuer import ClientInfo, IssuedSession, SessionIssuer
 from app.use_cases.shared.ports import (
     AuditEntry,
@@ -173,6 +174,7 @@ class MfaUseCase:
         user.record_failed_sign_in(self._clock.now(), self._policy)
         uow.track(user)
         await uow.users.save(user)
+        uow.audit(sign_in_audit.sign_in_failed(user, reason="wrong_mfa_code"))
         await uow.commit()
         if state is not None:
             await self._challenges.failed(state)
@@ -242,6 +244,11 @@ class VerifyMfaSignIn(MfaUseCase):
             issued, _ = await self._issuer.issue(
                 uow, user, client=cmd.client, tenant_config_version=None
             )
+            uow.audit(
+                sign_in_audit.signed_in(
+                    user, method="password+recovery_code" if used_recovery else "password+totp"
+                )
+            )
             await uow.commit()
         await self._challenges.close(state)
         return issued
@@ -273,6 +280,7 @@ class StartMfaEnrolment(MfaUseCase):
                 now=self._clock.now(),
             )
             await uow.mfa.upsert(factor)
+            # audit: not needed. An unconfirmed factor does nothing until confirmed (audited).
             await uow.commit()
         return MfaSetup(
             secret=totp.encode_secret(secret),
@@ -318,6 +326,7 @@ class ConfirmMfaEnrolment(MfaUseCase):
             user.record_successful_sign_in(self._clock.now())
             await uow.users.save(user)
             uow.audit(_audit("identity.mfa_enrolled", user, user.id, method="totp"))
+            uow.audit(sign_in_audit.signed_in(user, method="password+totp"))
             issued, _ = await self._issuer.issue(
                 uow, user, client=cmd.client, tenant_config_version=None
             )

@@ -5,12 +5,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 
+from app.domain.identity.roles import Realm
 from app.domain.shared.errors import NotFound, ValidationFailed
 from app.domain.shared.value_objects import EmailAddress, Slug
 from app.domain.tenancy.events import VerificationCodeIssued
 from app.domain.tenancy.tenant import TenantStatus
 from app.domain.tenancy.verification import EmailVerification
+from app.use_cases.identity import sign_in_audit
 from app.use_cases.identity.session_issuer import ClientInfo, IssuedSession, SessionIssuer
+from app.use_cases.shared import audit
 from app.use_cases.shared.ports import (
     Clock,
     RateLimiter,
@@ -71,6 +74,7 @@ class VerifySchoolEmail:
             if not self._secret_hasher.matches(cmd.code.strip(), verification.code_hash):
                 verification.record_wrong_code()
                 await uow.verifications.save(verification)
+                # audit: not needed. Attempt counter only; the code is rate limited and expires.
                 await uow.commit()
                 raise ValidationFailed("That code is not right.", code="verification_wrong")
 
@@ -85,6 +89,18 @@ class VerifySchoolEmail:
             issued, _ = await self._issuer.issue(
                 uow, user, client=cmd.client, tenant_config_version=tenant.config_version
             )
+            uow.audit(
+                audit.system(
+                    "tenant.email_verified",
+                    target_type="tenant",
+                    target_id=tenant.id,
+                    tenant_id=tenant.id,
+                    actor_id=user.id,
+                    actor_realm=Realm.SCHOOL,
+                    trial_ends_at=tenant.trial_ends_at,
+                )
+            )
+            uow.audit(sign_in_audit.signed_in(user, method="email_code"))
             await uow.commit()
             return issued
 
@@ -142,4 +158,5 @@ class ResendVerification:
                     tenant_id=tenant.id, email=email.value, school_name=tenant.name, code=code
                 )
             )
+            # audit: not needed. Resending the sign-up code changes nothing a person relies on.
             await uow.commit()

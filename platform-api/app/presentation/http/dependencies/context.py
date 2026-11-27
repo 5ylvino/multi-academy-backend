@@ -7,6 +7,7 @@ from typing import Annotated
 from fastapi import Depends, Request
 
 from app.infrastructure.container import Container, UseCases
+from app.infrastructure.observability import request_context
 from app.use_cases.identity.session_issuer import ClientInfo
 
 
@@ -22,13 +23,11 @@ def get_use_cases(container: Annotated[Container, Depends(get_container)]) -> Us
 def client_ip(request: Request) -> str | None:
     """Client IP, trusting only the configured number of proxy hops in X-Forwarded-For."""
     container: Container = request.app.state.container
-    hops = container.settings.trusted_proxy_hops
-    forwarded = request.headers.get("x-forwarded-for")
-    if forwarded and hops > 0:
-        chain = [p.strip() for p in forwarded.split(",") if p.strip()]
-        if len(chain) >= hops:
-            return chain[-hops]
-    return request.client.host if request.client else None
+    return request_context.client_ip(
+        request.headers.get("x-forwarded-for"),
+        request.client.host if request.client else None,
+        trusted_proxy_hops=container.settings.trusted_proxy_hops,
+    )
 
 
 def get_client_info(request: Request) -> ClientInfo:

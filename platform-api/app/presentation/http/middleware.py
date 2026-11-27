@@ -12,7 +12,7 @@ import uuid
 import structlog
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from app.infrastructure.observability import metrics
+from app.infrastructure.observability import metrics, request_context
 
 _log = structlog.get_logger("masms.access")
 _REQUEST_ID = re.compile(r"^[A-Za-z0-9._-]{8,64}$")
@@ -45,20 +45,37 @@ def _route_template(scope: Scope) -> str:
 
 
 class RequestContextMiddleware:
-    def __init__(self, app: ASGIApp, *, metrics_enabled: bool = True) -> None:
+    def __init__(
+        self, app: ASGIApp, *, metrics_enabled: bool = True, trusted_proxy_hops: int = 1
+    ) -> None:
         self.app = app
         self.metrics_enabled = metrics_enabled
+        self.trusted_proxy_hops = trusted_proxy_hops
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
-        incoming = dict(scope["headers"]).get(b"x-request-id", b"").decode("latin-1")
+        headers_in = dict(scope["headers"])
+        incoming = headers_in.get(b"x-request-id", b"").decode("latin-1")
         request_id = incoming if _REQUEST_ID.match(incoming) else uuid.uuid4().hex
         scope.setdefault("state", {})["request_id"] = request_id
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
+        client = scope.get("client")
+        context = request_context.RequestContext(
+            request_id=request_id,
+            ip_address=request_context.client_ip(
+                headers_in.get(b"x-forwarded-for", b"").decode("latin-1") or None,
+                client[0] if client else None,
+                trusted_proxy_hops=self.trusted_proxy_hops,
+            ),
+            user_agent=request_context.clean_user_agent(
+                headers_in.get(b"user-agent", b"").decode("latin-1")
+            ),
+        )
+        context_token = request_context.bind(context)
 
         start = time.perf_counter()
         status_code = 500
@@ -79,6 +96,7 @@ class RequestContextMiddleware:
         try:
             await self.app(scope, receive, send_wrapper)
         finally:
+            request_context.reset(context_token)
             elapsed = time.perf_counter() - start
             template = _route_template(scope)
             if self.metrics_enabled:

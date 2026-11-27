@@ -59,7 +59,11 @@ def create_app(settings: Settings | None = None, *, container: Container | None 
     app.add_middleware(
         BodySizeLimitMiddleware, default_limit=2 * 1024 * 1024, upload_limit=6 * 1024 * 1024
     )
-    app.add_middleware(RequestContextMiddleware, metrics_enabled=settings.metrics_enabled)
+    app.add_middleware(
+        RequestContextMiddleware,
+        metrics_enabled=settings.metrics_enabled,
+        trusted_proxy_hops=settings.trusted_proxy_hops,
+    )
 
     app.include_router(system_router)
     app.include_router(api_router, prefix="/api/v1")

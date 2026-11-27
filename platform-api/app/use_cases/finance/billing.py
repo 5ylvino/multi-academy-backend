@@ -28,6 +28,7 @@ from app.use_cases.finance.common import (
     require_student,
     settle,
 )
+from app.use_cases.shared import audit
 from app.use_cases.shared.ports import (
     AuditEntry,
     Clock,
@@ -321,6 +322,19 @@ class Billing:
             await post_invoice_issued(uow, invoice, by=actor.user_id, now=now)
             await settle(uow, tenant_id=tenant_id, student_id=student_id, by=actor.user_id, now=now)
             fresh = await uow.finance.get_invoice(invoice.id)
+            uow.audit(
+                audit.by(
+                    actor,
+                    "finance.invoice_created",
+                    target_type="invoice",
+                    target_id=invoice.id,
+                    number=invoice.number,
+                    student_id=str(student_id),
+                    total_minor=invoice.total.amount_minor,
+                    currency=invoice.total.currency,
+                    fee_item_ids=[str(i.id) for i in items],
+                )
+            )
             await uow.commit()
         return InvoiceView.of(fresh or invoice)
 

@@ -8,6 +8,7 @@ from app.domain.identity.roles import Realm
 from app.domain.identity.user import LoginPolicy, UserAccount
 from app.domain.shared.errors import AuthenticationFailed, TenantUnavailable
 from app.domain.shared.value_objects import EmailAddress, Slug
+from app.use_cases.identity import sign_in_audit
 from app.use_cases.identity.mfa import ChallengePurpose, MfaChallenge, MfaChallenges
 from app.use_cases.identity.session_issuer import ClientInfo, IssuedSession, SessionIssuer
 from app.use_cases.shared.ports import (
@@ -70,6 +71,7 @@ class SignIn:
                 user.record_failed_sign_in(now, self._policy)
                 uow.track(user)
                 await uow.users.save(user)
+                uow.audit(sign_in_audit.sign_in_failed(user, reason="wrong_password"))
                 await uow.commit()
                 raise AuthenticationFailed(_BAD_CREDENTIALS)
 
@@ -80,6 +82,7 @@ class SignIn:
                 # The failure counter is reset only once the second factor passes.
                 if rehashed:
                     await uow.users.save(user)
+                    # audit: not needed. A stronger hash of the same password; sign-in continues.
                     await uow.commit()
                 purpose = ChallengePurpose.VERIFY if user.mfa_enabled else ChallengePurpose.ENROL
                 return await self._mfa.open(user.id, purpose)
@@ -88,6 +91,7 @@ class SignIn:
             issued, _ = await self._issuer.issue(
                 uow, user, client=cmd.client, tenant_config_version=config_version
             )
+            uow.audit(sign_in_audit.signed_in(user, method="password"))
             await uow.commit()
             return issued
 

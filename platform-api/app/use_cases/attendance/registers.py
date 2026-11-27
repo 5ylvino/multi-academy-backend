@@ -18,6 +18,7 @@ from app.domain.attendance.register import (
 )
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.shared.errors import NotFound, PermissionDenied, ValidationFailed
+from app.use_cases.shared import audit
 from app.use_cases.shared.ports import (
     AuditEntry,
     Clock,
@@ -191,6 +192,22 @@ class StudentRegisters:
                 for entry, status in zip(entries, statuses, strict=True)
             ]
             skipped = await uow.attendance.add_marks(marks)
+            counts: dict[str, int] = {}
+            for mark in marks:
+                if mark.student_id not in skipped:
+                    counts[mark.status.value] = counts.get(mark.status.value, 0) + 1
+            uow.audit(
+                audit.by(
+                    actor,
+                    "attendance.register_submitted",
+                    target_type="class",
+                    target_id=class_id,
+                    day=day.isoformat(),
+                    recorded=len(marks) - len(skipped),
+                    already_marked=len(skipped),
+                    counts=counts,
+                )
+            )
             await uow.commit()
         return SubmitResult(recorded=len(marks) - len(skipped), already_marked=skipped)
 

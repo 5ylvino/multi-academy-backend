@@ -9,6 +9,7 @@ from app.domain.identity.roles import Realm
 from app.domain.identity.user import UserStatus
 from app.domain.shared.errors import AuthenticationFailed
 from app.use_cases.identity.session_issuer import ClientInfo, IssuedSession, SessionIssuer
+from app.use_cases.shared import audit
 from app.use_cases.shared.ports import Clock, Scope, SecretHasher, UnitOfWorkFactory
 
 _EXPIRED = "Your session has ended. Please sign in again."
@@ -48,6 +49,18 @@ class RefreshSessionUseCase:
                 # A rotated token came back, so someone else holds a copy.
                 # End every session in the family.
                 await uow.sessions.revoke_family(current.family_id, now)
+                if current.tenant_id is not None:
+                    await uow.enter_tenant(current.tenant_id)
+                uow.audit(
+                    audit.system(
+                        "identity.session_reuse_detected",
+                        target_type="user",
+                        target_id=current.user_id,
+                        tenant_id=current.tenant_id,
+                        actor_realm=current.realm,
+                        outcome="all_sessions_ended",
+                    )
+                )
                 uow.publish(
                     RefreshTokenReuseDetected(
                         tenant_id=current.tenant_id,
@@ -72,6 +85,15 @@ class RefreshSessionUseCase:
             user = await uow.users.get(current.user_id)
             if user is None or user.status is not UserStatus.ACTIVE:
                 await uow.sessions.revoke_family(current.family_id, now)
+                uow.audit(
+                    audit.system(
+                        "identity.sessions_ended_inactive_account",
+                        target_type="user",
+                        target_id=current.user_id,
+                        tenant_id=current.tenant_id,
+                        actor_realm=current.realm,
+                    )
+                )
                 await uow.commit()
                 raise AuthenticationFailed(_EXPIRED)
 
@@ -84,5 +106,6 @@ class RefreshSessionUseCase:
             )
             current.rotate_to(successor, now)
             await uow.sessions.save(current)
+            # audit: not needed. Routine token rotation; the sign-in that began it is audited.
             await uow.commit()
             return issued

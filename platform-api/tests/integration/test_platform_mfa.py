@@ -88,6 +88,7 @@ async def test_recovery_codes_are_single_use(
             "SELECT secret_ciphertext, cardinality(recovery_code_hashes) AS left "
             "FROM platform_mfa_factors"
         )
+        await conn.execute("SET app.rls_bypass = 'on'")  # the audit trail has RLS
         audited = await conn.fetchval(
             "SELECT count(*) FROM audit_events WHERE action = 'identity.mfa_recovery_code_used'"
         )

@@ -128,6 +128,8 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | POST | `/api/v1/finance/payment-proofs/{id}/withdraw` | the uploader, while waiting for review |
 | GET/POST/DELETE | `/api/v1/users/{student_id}/guardians`, `/{parent_id}` | `students:read` / `students:update` |
 | GET | `/api/v1/me/children` | parents |
+| GET | `/api/v1/audit-events`, `/export` (CSV), `/actions` | `audit_logs:view` (director, IT admin) |
+| GET | `/api/v1/platform/audit-events`, `/export` (CSV), `/actions` | `audit:read` |
 | GET | `/health/live`, `/health/ready`, `/metrics` | infrastructure |
 
 Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
@@ -149,6 +151,28 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
   an ordinary payment. The same bank reference or the same file can't be claimed twice. Files are
   private, served only as downloads, and checked against their stored SHA-256.
 - Parents see and pay only for children the school has linked to them.
+
+## Audit trail
+
+Every change a person makes is written to `audit_events` in the same transaction as the change,
+so the log never shows a rolled-back change and never misses a saved one.
+
+- Each row says who (user, school or console), what (`action`, the target, and for updates each
+  changed field's `from` and `to`), when, and from where (request id, client IP, device).
+- Also recorded: sign-ins and failed attempts against real accounts, sign-outs, stolen-session
+  detection, two-step verification events, opening a payment receipt, and downloading the log.
+  Never recorded: passwords, tokens, codes or file contents.
+- Append-only. The app role has only SELECT and INSERT, and triggers refuse UPDATE, DELETE and
+  TRUNCATE for every role. A retention purge can remove rows older than 7 years, and only with
+  `SET LOCAL app.audit_purge = 'on'`.
+- Row-level security: a school sees only its own events. Reading the table directly as the owner
+  needs `SET app.rls_bypass = 'on'`.
+- Search newest first with filters (`actor_id`, `action` or a prefix like `finance.`,
+  `target_type`, `target_id`, `since`, `until`) and keyset paging. CSV download is limited to
+  10,000 rows per request, is safe to open in Excel, and is itself recorded.
+- Each action has a plain-English label and category in `app/use_cases/audit/catalog.py`.
+- Two tests keep it complete: every use case that commits must write an audit entry (or carry an
+  `# audit: not needed. <reason>` note), and every action must have a label.
 
 ## File storage
 

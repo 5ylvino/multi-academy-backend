@@ -16,6 +16,7 @@ from app.domain.attendance.staff import (
 from app.domain.identity import totp
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.shared.errors import Conflict, PermissionDenied, ValidationFailed
+from app.use_cases.shared import audit
 from app.use_cases.shared.ports import (
     AuditEntry,
     Clock,
@@ -186,6 +187,14 @@ class StaffAttendance:
             if settings.kiosk_secret_ciphertext is None:
                 settings.kiosk_secret_ciphertext = self._box.encrypt(self._secrets.random_bytes(20))
                 await uow.attendance.save_settings(settings)
+                uow.audit(
+                    audit.by(
+                        actor,
+                        "attendance.kiosk_code_created",
+                        target_type="attendance_settings",
+                        target_id=tenant_id,
+                    )
+                )
                 await uow.commit()
             secret = self._box.decrypt(settings.kiosk_secret_ciphertext)
         now = self._clock.now()
@@ -235,6 +244,17 @@ class StaffAttendance:
             )
             if not await uow.attendance.add_check_in(check_in):
                 raise Conflict("You've already checked in today.", code="already_checked_in")
+            uow.audit(
+                audit.by(
+                    actor,
+                    "attendance.staff_checked_in",
+                    target_type="staff",
+                    target_id=actor.user_id,
+                    day=check_in.day.isoformat(),
+                    status=check_in.status.value,
+                    site_name=site,
+                )
+            )
             await uow.commit()
         return CheckInView(
             day=check_in.day,

@@ -15,6 +15,7 @@ from app.domain.identity.user import UserAccount, UserStatus
 from app.domain.shared.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.domain.shared.value_objects import EmailAddress, Page, Slug
 from app.use_cases.identity.session_issuer import ClientInfo, IssuedSession, SessionIssuer
+from app.use_cases.shared import audit
 from app.use_cases.shared.pagination import clamp_limit
 from app.use_cases.shared.ports import (
     AuditEntry,
@@ -208,6 +209,17 @@ class AcceptInvite:
             await uow.users.save(user)
             issued, _ = await self._issuer.issue(
                 uow, user, client=cmd.client, tenant_config_version=tenant.config_version
+            )
+            uow.audit(
+                audit.system(
+                    "identity.invite_accepted",
+                    target_type="user",
+                    target_id=user.id,
+                    tenant_id=tenant.id,
+                    actor_id=user.id,
+                    actor_realm=Realm.SCHOOL,
+                    invite_id=str(invite.id),
+                )
             )
             await uow.commit()
             return issued
