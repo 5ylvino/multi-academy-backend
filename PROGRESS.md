@@ -4,7 +4,7 @@ The handover file for this repository. **Read it first in every session, and upd
 of every task** (what changed, what's next, any new decision). Keep it short and current: replace
 stale lines rather than appending history forever. Detailed history lives in git and in PR #1.
 
-Last updated: 27 Nov 2026, after the safeguarding commit. Next: operations (clinic, visitors, transport, hostel).
+Last updated: 27 Nov 2026, after commit `1945470` (safeguarding). Next: operations (clinic, visitors, transport, hostel).
 
 ---
 
@@ -77,7 +77,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
 | `ce575ff` | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
-| (this commit) | Safeguarding: staff record concerns (reporter sees only their own), leads work cases with a chronology (notes, parent contact, referrals, case lead, close and reopen), inbox notice and urgent email to leads without details, encrypted text, column-level grants, every case opening logged |
+| `1945470` | Safeguarding: staff record concerns (reporter sees only their own), leads work cases with a chronology (notes, parent contact, referrals, case lead, close and reopen), inbox notice and urgent email to leads without details, encrypted text, column-level grants, every case opening logged |
 | `6a1401e` | Communication: announcements to roles and classes (scheduled, pinned, end dates, read receipts, withdrawal), urgent alerts emailed to the whole audience, parent and staff conversations with safeguarding rules (append-only messages, no students, parents only about their own children, logged leader review), notification inbox with badge counts |
 | `134d55e` | Payroll: per-school tax and pension settings (Nigeria 2026 defaults), staff pay profiles with encrypted account numbers, monthly runs prepared by one person and approved by another (DB-enforced), payslips frozen by trigger after approval, ledger accrual, payment and reversal, bank schedule CSV, payslip-ready emails, staff self-service payslips |
 | `b3eb2c2` | Inventory: stock items with units, SKU, reorder levels and location; append-only movements (receive with cost, issue to a person, return, write-off, count adjustment) with balance after each; never below zero; low-stock flag and event; store summary with value |
