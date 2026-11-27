@@ -4,7 +4,7 @@ The handover file for this repository. **Read it first in every session, and upd
 of every task** (what changed, what's next, any new decision). Keep it short and current: replace
 stale lines rather than appending history forever. Detailed history lives in git and in PR #1.
 
-Last updated: 27 Nov 2026, after commit `5f285a9` (audit trail). Next: Paystack.
+Last updated: 27 Nov 2026, after commit `ce575ff` (Paystack). Next: platform billing.
 
 ---
 
@@ -76,7 +76,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `524a6a2` | School fees: fee catalog, repeatable term billing runs, invoices, scholarships, idempotent manual payments, automatic credit settlement, voids, reversals, two-person refunds, statements, append-only double-entry ledger |
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
-| (this commit) | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
+| `ce575ff` | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
 | `5f285a9` | Audit trail: every change recorded with who, what, field changes, request id, IP and device; append-only and RLS-protected; search, CSV export and plain-English labels for school leaders and owner staff; tests that fail when a new use case forgets to audit |
 
 **Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0008`:
