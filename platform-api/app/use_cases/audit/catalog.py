@@ -96,6 +96,13 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "finance.payment_proof_rejected": ActionInfo("Turned down proof of payment", _F),
         "finance.payment_proof_withdrawn": ActionInfo("Withdrew proof of payment", _F),
         "finance.payment_proof_file_viewed": ActionInfo("Opened a payment receipt", _F),
+        "finance.gateway_connected": ActionInfo("Connected the online payment account", _F),
+        "finance.gateway_disconnected": ActionInfo("Disconnected the online payment account", _F),
+        "finance.checkout_started": ActionInfo("Started an online payment", _F),
+        "finance.online_payment_received": ActionInfo("Received an online payment", _F),
+        "finance.checkout_failed": ActionInfo("Online payment failed", _F),
+        "finance.checkout_abandoned": ActionInfo("Online payment not completed", _F),
+        "finance.checkout_needs_review": ActionInfo("Online payment needs checking", _F),
         # School account
         "tenant.registered": ActionInfo("Signed up the school", _SC),
         "tenant.email_verified": ActionInfo("Confirmed the school's email", _SC),

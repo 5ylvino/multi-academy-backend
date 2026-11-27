@@ -9,6 +9,7 @@ from uuid import UUID
 from app.domain.finance.billing import Invoice, InvoiceStatus, Scholarship
 from app.domain.finance.catalog import FeeItem, FinanceSettings
 from app.domain.finance.ledger import Account, JournalEntry, StudentBalance
+from app.domain.finance.online import Checkout, GatewayAccount, GatewayProvider
 from app.domain.finance.payments import Allocation, Payment, Refund, RefundStatus
 from app.domain.finance.proofs import PaymentProof, ProofStatus
 from app.domain.shared.value_objects import Page
@@ -156,4 +157,47 @@ class FinanceRepository(Protocol):
 
     async def trial_balance(self) -> dict[tuple[Account, str], int]:
         """Sum of each account per currency. Always sums to zero per currency."""
+        ...
+
+
+class OnlinePaymentRepository(Protocol):
+    """A school's provider connection and its checkouts. Scoped to the current school, except
+    ``pending_checkouts``, which reconciliation runs across schools in platform scope."""
+
+    async def get_gateway(
+        self, provider: GatewayProvider | None = None, *, include_inactive: bool = False
+    ) -> GatewayAccount | None:
+        """The active connection (for ``provider``, or whichever is active). With
+        ``include_inactive``, also a disconnected one, to confirm payments made before."""
+        ...
+
+    async def save_gateway(self, account: GatewayAccount) -> None:
+        """Insert or replace the connection for its provider; other providers are deactivated."""
+        ...
+
+    async def deactivate_gateways(self) -> int: ...
+
+    async def add_checkout(self, checkout: Checkout) -> None: ...
+
+    async def get_checkout(
+        self, checkout_id: UUID, *, for_update: bool = False
+    ) -> Checkout | None: ...
+
+    async def get_checkout_by_reference(
+        self, reference: str, *, for_update: bool = False
+    ) -> Checkout | None: ...
+
+    async def save_checkout(self, checkout: Checkout) -> None: ...
+
+    async def recent_checkout(self, payer_id: UUID, student_id: UUID) -> Checkout | None:
+        """The payer's newest checkout for this student, if any."""
+        ...
+
+    async def list_checkouts(
+        self, *, student_ids: list[UUID] | None, cursor: str | None, limit: int
+    ) -> Page[Checkout]: ...
+
+    async def pending_checkouts(self, *, older_than: datetime, limit: int) -> list[Checkout]:
+        """Oldest pending checkouts created before ``older_than``, across every school in
+        platform scope."""
         ...

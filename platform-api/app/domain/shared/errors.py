@@ -63,3 +63,9 @@ class FeatureDisabled(DomainError):
 
 class RateLimited(DomainError):
     code = "rate_limited"
+
+
+class ProviderUnavailable(DomainError):
+    """An outside service (payment provider, email, storage) failed or timed out. Safe to retry."""
+
+    code = "provider_unavailable"

@@ -19,6 +19,7 @@ from app.domain.shared.errors import (
     InvalidStateTransition,
     NotFound,
     PermissionDenied,
+    ProviderUnavailable,
     RateLimited,
     TenantUnavailable,
     ValidationFailed,
@@ -37,6 +38,7 @@ _STATUS: tuple[tuple[type[DomainError], int], ...] = (
     (TenantUnavailable, 403),
     (FeatureDisabled, 403),
     (RateLimited, 429),
+    (ProviderUnavailable, 502),
 )
 
 

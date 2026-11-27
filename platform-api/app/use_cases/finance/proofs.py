@@ -333,7 +333,8 @@ class PaymentProofs:
         actor.require_realm(Realm.SCHOOL)
         actor.require("payments:process", "fees:manage")
         tenant_id = actor.school_tenant_id
-        local_today = (await self._school_time.now_local(tenant_id)).date()
+        local_now = await self._school_time.now_local(tenant_id)
+        local_today = local_now.date()
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             found = await uow.finance.get_proof(proof_id)
@@ -367,9 +368,12 @@ class PaymentProofs:
                 reference=proof.reference,
                 received_on=min(proof.paid_on, local_today),
                 by=actor.user_id,
-                now=now,
+                # The school's local time: just after midnight in Lagos it's still yesterday in
+                # UTC, and today's date must not count as "in the future".
+                now=local_now,
                 idempotency_key=f"proof:{proof.id}",
             )
+            payment.recorded_at = now
             await uow.finance.add_payment(payment)
             uow.track(payment)
             await post_payment(uow, payment, reverse=False, by=actor.user_id, now=now)

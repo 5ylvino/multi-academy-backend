@@ -128,6 +128,10 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | POST | `/api/v1/finance/payment-proofs/{id}/withdraw` | the uploader, while waiting for review |
 | GET/POST/DELETE | `/api/v1/users/{student_id}/guardians`, `/{parent_id}` | `students:read` / `students:update` |
 | GET | `/api/v1/me/children` | parents |
+| GET/PUT/DELETE | `/api/v1/finance/payment-gateway` | `fees:manage`: connect the school's Paystack account |
+| POST/GET | `/api/v1/finance/checkouts`, `/{id}` | parents pay for linked children; staff with `payments:view` see all |
+| POST | `/api/v1/finance/checkouts/{id}/confirm` | the payer, on return from the payment page |
+| POST | `/api/v1/webhooks/payments/{provider}/{school_id}` | the provider (signature checked) |
 | GET | `/api/v1/audit-events`, `/export` (CSV), `/actions` | `audit_logs:view` (director, IT admin) |
 | GET | `/api/v1/platform/audit-events`, `/export` (CSV), `/actions` | `audit:read` |
 | GET | `/health/live`, `/health/ready`, `/metrics` | infrastructure |
@@ -151,6 +155,36 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
   an ordinary payment. The same bank reference or the same file can't be claimed twice. Files are
   private, served only as downloads, and checked against their stored SHA-256.
 - Parents see and pay only for children the school has linked to them.
+
+## Online payments (Paystack)
+
+Optional for each school and off until it is set up. The school is the merchant: it connects its
+own Paystack account, so fees settle straight to the school's bank and the platform never holds
+them.
+
+1. The bursar enters the Paystack public and secret keys (`PUT /finance/payment-gateway`). We
+   check them with Paystack, store the secret key encrypted (AES-256-GCM), and return the
+   webhook URL to paste into Paystack (Settings > API Keys & Webhooks).
+2. The bursar turns on `online_payments_enabled` in the finance settings.
+3. A parent starts a checkout for a linked child (`POST /finance/checkouts`); the amount
+   defaults to everything owed and can't be more. They are sent to Paystack's page.
+4. The payment is credited only after Paystack's API confirms it, from any of three paths, all
+   safe to repeat: the signed webhook, the parent's return (`/confirm`), or reconciliation.
+   It becomes an ordinary `online` payment: receipt number, ledger (gateway clearing account),
+   automatic settlement of the oldest invoices, statements and audit trail.
+
+Edge cases handled: a double-click reuses the same page for 30 minutes; a provider outage
+returns `502 provider_unavailable` and the parent can simply retry; a payment that arrives after
+the checkout closed still counts; a wrong currency is held as `needs_review`; disconnecting stops
+new payments but finishes ones already made; forged webhooks get 401.
+
+Reconciliation runs in the worker every 5 minutes (and `python -m app.presentation.cli
+reconcile-payments`): pending checkouts older than 5 minutes are checked with Paystack, and
+unpaid ones close after 24 hours.
+
+Switching or adding a provider: write one adapter for the `PaymentGateway` port
+(`app/use_cases/shared/ports.py`) next to `app/infrastructure/providers/payments/paystack.py`
+and register it in `infrastructure/container.py`. Use cases, tables and routes stay the same.
 
 ## Audit trail
 

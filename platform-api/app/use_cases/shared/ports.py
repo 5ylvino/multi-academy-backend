@@ -11,7 +11,7 @@ from uuid import UUID
 
 from app.domain.academics.repositories import AcademicsRepository
 from app.domain.attendance.repositories import AttendanceRepository
-from app.domain.finance.repositories import FinanceRepository
+from app.domain.finance.repositories import FinanceRepository, OnlinePaymentRepository
 from app.domain.identity.repositories import (
     GuardianRepository,
     InviteRepository,
@@ -182,6 +182,91 @@ class AuditLogRepository(Protocol):
         ...
 
 
+# ---- payment providers ----------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class GatewayCredentials:
+    public_key: str
+    secret_key: str
+
+
+@dataclass(frozen=True, slots=True)
+class CheckoutRequest:
+    reference: str
+    amount_minor: int
+    currency: str
+    email: str
+    callback_url: str
+    metadata: Mapping[str, str]
+
+
+@dataclass(frozen=True, slots=True)
+class CheckoutSession:
+    authorization_url: str
+
+
+@dataclass(frozen=True, slots=True)
+class GatewayTransaction:
+    """What the provider's API says about a payment. ``status`` is one of ``success``,
+    ``failed``, ``abandoned`` or ``pending``."""
+
+    reference: str
+    status: str
+    amount_minor: int
+    currency: str
+    transaction_id: str | None
+    channel: str | None
+    gateway_response: str | None
+
+
+@dataclass(frozen=True, slots=True)
+class GatewayNotice:
+    """A verified webhook. Only says which payment to check; never trusted for amounts."""
+
+    event: str
+    reference: str | None
+
+
+class PaymentGateway(Protocol):
+    """One payment provider. Adding a provider means adding one adapter; use cases don't change.
+
+    Methods raise ``ProviderUnavailable`` when the provider can't be reached, and
+    ``ValidationFailed`` for input the provider refuses (such as a wrong key).
+    """
+
+    @property
+    def provider(self) -> str: ...
+
+    def key_mode(self, secret_key: str) -> str:
+        """``live`` or ``test`` from the key's format; raises ValidationFailed if malformed."""
+        ...
+
+    async def check_credentials(self, credentials: GatewayCredentials) -> None: ...
+
+    async def initialize(
+        self, credentials: GatewayCredentials, request: CheckoutRequest
+    ) -> CheckoutSession: ...
+
+    async def verify(self, credentials: GatewayCredentials, reference: str) -> GatewayTransaction:
+        """Ask the provider for the real state of a payment."""
+        ...
+
+    def read_webhook(
+        self, credentials: GatewayCredentials, headers: Mapping[str, str], body: bytes
+    ) -> GatewayNotice:
+        """Check the signature and parse the event. Raises AuthenticationFailed if forged."""
+        ...
+
+
+class PaymentGateways(Protocol):
+    def get(self, provider: str) -> PaymentGateway:
+        """Raises ValidationFailed for a provider that isn't available."""
+        ...
+
+    def providers(self) -> list[str]: ...
+
+
 class UnitOfWork(Protocol):
     """One database transaction.
 
@@ -225,6 +310,9 @@ class UnitOfWork(Protocol):
 
     @property
     def finance(self) -> FinanceRepository: ...
+
+    @property
+    def online_payments(self) -> OnlinePaymentRepository: ...
 
     @property
     def audit_log(self) -> AuditLogRepository: ...

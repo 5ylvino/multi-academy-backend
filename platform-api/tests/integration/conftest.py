@@ -23,7 +23,10 @@ from redis.asyncio import Redis
 from app.infrastructure.config.settings import Environment, Settings
 from app.infrastructure.container import Container, build_container
 from app.infrastructure.messaging.outbox_relay import OutboxRelay
+from app.infrastructure.providers.payments.paystack import PaystackGateway
+from app.infrastructure.providers.payments.registry import GatewayRegistry
 from app.presentation.http.app import create_app
+from tests.fakes.paystack import BASE_URL, FakePaystack
 
 APP_URL = os.environ.get("TEST_DATABASE_URL")
 OWNER_URL = os.environ.get("TEST_MIGRATION_DATABASE_URL")
@@ -92,7 +95,9 @@ def settings(tmp_path_factory: pytest.TempPathFactory) -> Settings:
 
 
 @pytest.fixture
-async def container(migrated: None, settings: Settings) -> AsyncIterator[Container]:
+async def container(
+    migrated: None, settings: Settings, paystack: FakePaystack
+) -> AsyncIterator[Container]:
     conn = await asyncpg.connect(_plain(OWNER_URL or ""))
     try:
         tables = [
@@ -115,9 +120,19 @@ async def container(migrated: None, settings: Settings) -> AsyncIterator[Contain
     await redis.flushdb()
     await redis.aclose()
 
-    c = build_container(settings)
+    c = build_container(
+        settings,
+        payment_gateways=GatewayRegistry(
+            [PaystackGateway(base_url=BASE_URL, client=paystack.client())]
+        ),
+    )
     yield c
     await c.aclose()
+
+
+@pytest.fixture
+def paystack() -> FakePaystack:
+    return FakePaystack()
 
 
 @pytest.fixture

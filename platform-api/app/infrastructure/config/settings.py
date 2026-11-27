@@ -70,6 +70,13 @@ class Settings(BaseSettings):
 
     #: Public base URL of the school web app; invite and reset links point here.
     school_app_url: str = "http://localhost:3000"
+    #: Public base URL of this API; payment providers send webhooks here.
+    public_api_url: str = "http://localhost:8000"
+    #: Where the provider sends the parent back after paying. Defaults to the school app.
+    payment_callback_url: str | None = None
+    paystack_base_url: str = "https://api.paystack.co"
+    #: Accept providers' test keys (sk_test_...). Never in production.
+    payments_allow_test_keys: bool = True
 
     email_provider: str = "log"  # "log" | "smtp"
     email_from_address: str = "no-reply@mas.ng"
@@ -114,6 +121,12 @@ class Settings(BaseSettings):
         return v.upper()
 
     @property
+    def effective_payment_callback_url(self) -> str:
+        return (
+            self.payment_callback_url or f"{self.school_app_url.rstrip('/')}/fees/payments/return"
+        )
+
+    @property
     def is_production(self) -> bool:
         return self.environment in {Environment.PRODUCTION, Environment.STAGING}
 
@@ -145,6 +158,10 @@ class Settings(BaseSettings):
             and self.object_store_secret_access_key
         ):
             problems.append("MASMS_OBJECT_STORE_ENDPOINT and its access keys are required")
+        if self.environment is Environment.PRODUCTION and self.payments_allow_test_keys:
+            problems.append("MASMS_PAYMENTS_ALLOW_TEST_KEYS must be false in production")
+        if not self.public_api_url.startswith("https://"):
+            problems.append("MASMS_PUBLIC_API_URL must be an https URL")
         if problems:
             raise ValueError("Unsafe production settings: " + "; ".join(problems))
         return self

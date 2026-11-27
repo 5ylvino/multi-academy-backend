@@ -26,6 +26,9 @@ from app.infrastructure.persistence.repositories.identity import (
     SqlRefreshSessionRepository,
     SqlUserRepository,
 )
+from app.infrastructure.persistence.repositories.online_payments import (
+    SqlOnlinePaymentRepository,
+)
 from app.infrastructure.persistence.repositories.platform import (
     SqlFeatureFlagRepository,
     SqlPlanRepository,
@@ -83,6 +86,7 @@ class SqlAlchemyUnitOfWork:
         self.academics = SqlAcademicsRepository(s, self._scope)
         self.finance = SqlFinanceRepository(s, self._scope)
         self.audit_log = SqlAuditLogRepository(s)
+        self.online_payments = SqlOnlinePaymentRepository(s, self._scope)
         return self
 
     async def __aexit__(

@@ -143,10 +143,6 @@ class ScholarshipView:
         )
 
 
-#: No payment gateway is wired yet (next slice), so online payments can't be switched on.
-GATEWAY_READY = False
-
-
 def _level(value: str | None) -> str | None:
     if value is None:
         return None
@@ -202,7 +198,7 @@ class FinanceCatalog:
                     BankAccount(a.bank_name, a.account_name, a.account_number)
                     for a in (cmd.bank_accounts or [])
                 ],
-                gateway_ready=GATEWAY_READY,
+                gateway_ready=await uow.online_payments.get_gateway() is not None,
             )
             after = SettingsView.of(settings, locked=locked)
             await uow.finance.save_settings(settings)

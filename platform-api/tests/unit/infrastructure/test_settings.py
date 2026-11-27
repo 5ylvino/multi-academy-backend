@@ -20,6 +20,8 @@ def _production(**overrides: Any) -> Settings:
         "data_keys": {"d1": SecretStr(generate_key())},
         "data_key_id": "d1",
         "object_store": "s3",
+        "public_api_url": "https://api.mas.ng",
+        "payments_allow_test_keys": False,
         "object_store_endpoint": "https://br-x.storage.c-2.us-east-2.aws.neon.tech",
         "object_store_access_key_id": "nak_live_x",
         "object_store_secret_access_key": SecretStr("nsk_live_x"),
@@ -67,3 +69,10 @@ def test_neon_env_names_are_read(monkeypatch: pytest.MonkeyPatch) -> None:
     assert settings.object_store_access_key_id == "nak_live_y"
     assert settings.object_store_secret_access_key is not None
     assert settings.object_store_secret_access_key.get_secret_value() == "nsk_live_y"
+
+
+def test_production_refuses_test_payment_keys_and_plain_http() -> None:
+    with pytest.raises(ValueError, match="PAYMENTS_ALLOW_TEST_KEYS"):
+        _production(payments_allow_test_keys=True)
+    with pytest.raises(ValueError, match="PUBLIC_API_URL"):
+        _production(public_api_url="http://api.mas.ng")

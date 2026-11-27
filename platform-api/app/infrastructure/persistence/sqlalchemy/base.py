@@ -45,6 +45,8 @@ TENANT_SCOPED_TABLES: tuple[str, ...] = (
     "finance_journal_entries",
     "finance_journal_lines",
     "finance_payment_proofs",
+    "finance_gateway_accounts",
+    "finance_checkouts",
 )
 
 #: Tables that carry ``tenant_id`` but are registry or platform data, read before a tenant is known.

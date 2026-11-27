@@ -6,6 +6,9 @@ Commands:
   reset-platform-mfa --email E
       Break-glass for a lost authenticator: removes the factor and signs the person out
       everywhere. They set up two-step verification again at next sign-in. Audited.
+  reconcile-payments
+      Check every pending online payment with its provider now (the worker also does this
+      every five minutes).
 """
 
 from __future__ import annotations
@@ -60,6 +63,21 @@ async def _reset_platform_mfa(args: argparse.Namespace) -> int:
     return 0
 
 
+async def _reconcile_payments() -> int:
+    settings = get_settings()
+    configure_logging(settings.log_level, json=False)
+    container = build_container(settings, role="cli")
+    try:
+        report = await container.use_cases.online_payments.reconcile()
+    finally:
+        await container.aclose()
+    print(
+        f"checked {report.checked}: {report.succeeded} paid, {report.failed} failed, "
+        f"{report.abandoned} closed unpaid, {report.errors} errors"
+    )
+    return 1 if report.errors else 0
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="masms")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -69,11 +87,14 @@ def main(argv: list[str] | None = None) -> int:
     create.add_argument("--role", action="append", required=True, help="Repeat for several roles")
     reset = sub.add_parser("reset-platform-mfa", help="Reset a console user's two-step login")
     reset.add_argument("--email", required=True)
+    sub.add_parser("reconcile-payments", help="Check pending online payments with the provider")
     args = parser.parse_args(argv)
     if args.command == "create-platform-user":
         return asyncio.run(_create_platform_user(args))
     if args.command == "reset-platform-mfa":
         return asyncio.run(_reset_platform_mfa(args))
+    if args.command == "reconcile-payments":
+        return asyncio.run(_reconcile_payments())
     return 2
 
 

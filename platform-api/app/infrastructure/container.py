@@ -24,6 +24,8 @@ from app.infrastructure.messaging.outbox_relay import Handler, OutboxRelay
 from app.infrastructure.persistence.sqlalchemy.engine import create_engine, create_session_factory
 from app.infrastructure.persistence.sqlalchemy.unit_of_work import SqlAlchemyUnitOfWorkFactory
 from app.infrastructure.providers.email.senders import LogEmailSender, SmtpEmailSender
+from app.infrastructure.providers.payments.paystack import PaystackGateway
+from app.infrastructure.providers.payments.registry import GatewayRegistry
 from app.infrastructure.security.passwords import Argon2PasswordHasher
 from app.infrastructure.security.secret_box import AesGcmSecretBox, decode_key
 from app.infrastructure.security.secrets import CryptoSecretGenerator, HmacSecretHasher
@@ -36,6 +38,7 @@ from app.use_cases.attendance.staff import StaffAttendance
 from app.use_cases.audit.trail import AuditTrail
 from app.use_cases.finance.billing import Billing
 from app.use_cases.finance.catalog import FinanceCatalog
+from app.use_cases.finance.online import OnlinePayments
 from app.use_cases.finance.payments import Payments
 from app.use_cases.finance.proofs import PaymentProofs
 from app.use_cases.finance.statements import Statements
@@ -130,6 +133,7 @@ class UseCases:
     payment_proofs: PaymentProofs
     guardians: Guardians
     audit_trail: AuditTrail
+    online_payments: OnlinePayments
 
 
 @dataclass
@@ -141,6 +145,7 @@ class Container:
     session_factory: async_sessionmaker[AsyncSession]
     _engines: list[AsyncEngine] = field(default_factory=list)
     _redis: object | None = None
+    _gateways: GatewayRegistry | None = None
 
     def decode_access(self, token: str, realm: Realm) -> AccessClaims:
         return self.tokens.decode_access(token, realm=realm)
@@ -166,6 +171,8 @@ class Container:
             await engine.dispose()
         if self._redis is not None:
             await self._redis.aclose()  # type: ignore[attr-defined]
+        if self._gateways is not None:
+            await self._gateways.aclose()
 
 
 def _email_sender(settings: Settings) -> EmailSender:
@@ -217,7 +224,9 @@ def _secret_box(settings: Settings) -> AesGcmSecretBox:
     return AesGcmSecretBox(current_key_id="dev", keys={"dev": _dev_key(settings, b"data-key")})
 
 
-def build_container(settings: Settings, *, role: str = "api") -> Container:
+def build_container(
+    settings: Settings, *, role: str = "api", payment_gateways: GatewayRegistry | None = None
+) -> Container:
     primary = create_engine(
         settings.database_url.get_secret_value(), settings, application_name=f"masms-{role}"
     )
@@ -280,6 +289,9 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
     runtime = GetTenantRuntime(uow_factory=uow, cache=cache)
     features = ResolveTenantFeatures(uow_factory=uow, cache=cache)
     school_time = TenantSchoolTime(runtime=runtime, clock=clock)
+    gateways = payment_gateways or GatewayRegistry(
+        [PaystackGateway(base_url=settings.paystack_base_url)]
+    )
     challenges = MfaChallenges(cache=cache, secrets=secrets, secret_hasher=secret_hasher)
 
     def mfa_use_case(cls: type[M]) -> M:
@@ -403,6 +415,17 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
         ),
         guardians=Guardians(uow_factory=uow, clock=clock),
         audit_trail=AuditTrail(uow_factory=uow, clock=clock),
+        online_payments=OnlinePayments(
+            uow_factory=uow,
+            gateways=gateways,
+            box=secret_box,
+            clock=clock,
+            school_time=school_time,
+            limiter=limiter,
+            callback_url=settings.effective_payment_callback_url,
+            public_api_url=settings.public_api_url,
+            allow_test_keys=settings.payments_allow_test_keys,
+        ),
     )
 
     email = _email_sender(settings)
@@ -421,4 +444,5 @@ def build_container(settings: Settings, *, role: str = "api") -> Container:
         session_factory=session_factory,
         _engines=engines,
         _redis=redis,
+        _gateways=gateways,
     )

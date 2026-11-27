@@ -409,3 +409,84 @@ class PaymentProofRow(Base):
         Index("ix_finance_payment_proofs_queue", "tenant_id", "status", "submitted_at"),
         Index("ix_finance_payment_proofs_student", "tenant_id", "student_id"),
     )
+
+
+class GatewayAccountRow(Base):
+    """A school's own payment provider account. The secret key is encrypted (AES-256-GCM)."""
+
+    __tablename__ = "finance_gateway_accounts"
+
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    provider: Mapped[str] = mapped_column(String(24), primary_key=True)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    public_key: Mapped[str] = mapped_column(String(200))
+    secret_key_ciphertext: Mapped[str] = mapped_column(String(1000))
+    key_hint: Mapped[str] = mapped_column(String(8))
+    mode: Mapped[str] = mapped_column(String(8))
+    connected_by: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    connected_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    active: Mapped[bool] = mapped_column(Boolean, server_default=text("true"))
+
+    __table_args__ = (
+        ForeignKeyConstraint(["tenant_id"], ["tenants.id"], ondelete="CASCADE"),
+        CheckConstraint("mode IN ('test', 'live')", name="mode_known"),
+    )
+
+
+class CheckoutRow(Base):
+    """One attempt to pay online. At most one payment per checkout, and per reference."""
+
+    __tablename__ = "finance_checkouts"
+
+    tenant_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True), primary_key=True)
+    reference: Mapped[str] = mapped_column(String(40))
+    provider: Mapped[str] = mapped_column(String(24))
+    student_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    payer_id: Mapped[UUID] = mapped_column(PgUUID(as_uuid=True))
+    payer_email: Mapped[str] = mapped_column(String(254))
+    amount_minor: Mapped[int] = mapped_column(BigInteger)
+    currency: Mapped[str] = mapped_column(String(3))
+    status: Mapped[str] = mapped_column(String(16))
+    authorization_url: Mapped[str | None] = mapped_column(String(500))
+    provider_transaction_id: Mapped[str | None] = mapped_column(String(64))
+    channel: Mapped[str | None] = mapped_column(String(32))
+    paid_amount_minor: Mapped[int | None] = mapped_column(BigInteger)
+    payment_id: Mapped[UUID | None] = mapped_column(PgUUID(as_uuid=True))
+    failure_reason: Mapped[str | None] = mapped_column(String(200))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+    __table_args__ = (
+        _student_fk(),
+        ForeignKeyConstraint(
+            ["tenant_id", "payer_id"],
+            ["school_users.tenant_id", "school_users.id"],
+            ondelete="RESTRICT",
+            name="fk_finance_checkouts_payer",
+        ),
+        ForeignKeyConstraint(
+            ["tenant_id", "payment_id"],
+            ["finance_payments.tenant_id", "finance_payments.id"],
+            ondelete="RESTRICT",
+            name="fk_finance_checkouts_payment",
+        ),
+        CheckConstraint("amount_minor > 0", name="amount_positive"),
+        CheckConstraint(
+            "status IN ('pending', 'succeeded', 'failed', 'abandoned', 'needs_review')",
+            name="status_known",
+        ),
+        CheckConstraint(
+            "(status = 'succeeded') = (payment_id IS NOT NULL)", name="succeeded_has_payment"
+        ),
+        UniqueConstraint("reference", name="uq_finance_checkouts_reference"),
+        UniqueConstraint("tenant_id", "payment_id", name="uq_finance_checkouts_payment"),
+        Index("ix_finance_checkouts_payer", "tenant_id", "payer_id", "created_at"),
+        Index("ix_finance_checkouts_student", "tenant_id", "student_id", "created_at"),
+        Index(
+            "ix_finance_checkouts_pending",
+            "created_at",
+            postgresql_where=text("status = 'pending'"),
+        ),
+    )
