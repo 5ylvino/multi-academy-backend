@@ -136,6 +136,8 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET/PUT | `/api/v1/finance/budgets` | `budgets:read` (budget against actual) / `budgets:manage` |
 | POST/GET | `/api/v1/finance/expenses`, `/{id}`, `/{id}/receipt` | `budgets:manage` records, `budgets:read` views |
 | POST | `/api/v1/finance/expenses/{id}/approve`, `/reject`, `/void` | `expenses:approve` (not the recorder); recorder may cancel while pending |
+| GET/POST/PUT | `/api/v1/inventory/items`, `/{id}`, `/summary` | `inventory:read` / `inventory:manage` |
+| POST/GET | `/api/v1/inventory/items/{id}/movements`, `/api/v1/inventory/movements` | `inventory:manage` / `inventory:read` |
 | GET | `/api/v1/subscription`, `/subscription/invoices` | `organization:view`: the school's plan and platform invoices |
 | POST | `/api/v1/subscription/invoices/{id}/pay`, `/confirm` | `organization:update` / `organization:view` |
 | GET/POST | `/api/v1/platform-invoices/{id}`, `/pay`, `/confirm` `?token=` | anyone with the emailed pay link (works while suspended) |
@@ -181,6 +183,18 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
 - Voiding an approved expense posts the reversing entry. Rejected and cancelled expenses never
   touch the books. `GET /finance/budgets` shows planned, approved, pending, remaining and percent
   used per category, plus spending in categories with no budget.
+
+## Inventory
+
+- Stock items have a unit, a reorder level, an optional SKU (unique per school), category and
+  location. Quantity on hand changes only through movements: receive (with the unit cost paid),
+  issue (to a person), return, write off (reason required) and adjust after a stock count
+  (enter the counted number; reason required).
+- Movements are append-only for the app role and store the balance after each one, so every
+  number on the shelf is explained. Stock can't go below zero (also a database CHECK).
+- Items at or below their reorder level show as low (`low_only=true`); crossing the level
+  raises `inventory.stock_low` once. `/inventory/summary` gives item count, low count and stock
+  value at last cost. Filter movements by person to see what someone was issued.
 
 ## Online payments (Paystack)
 

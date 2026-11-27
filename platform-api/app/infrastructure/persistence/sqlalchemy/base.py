@@ -50,6 +50,8 @@ TENANT_SCOPED_TABLES: tuple[str, ...] = (
     "finance_expense_categories",
     "finance_budgets",
     "finance_expenses",
+    "inventory_items",
+    "inventory_movements",
     "platform_subscriptions",
     "platform_invoices",
     "platform_invoice_checkouts",

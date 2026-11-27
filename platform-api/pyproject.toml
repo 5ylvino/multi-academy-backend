@@ -134,4 +134,5 @@ modules = [
   "app.domain.attendance",
   "app.domain.finance",
   "app.domain.subscriptions",
+  "app.domain.inventory",
 ]

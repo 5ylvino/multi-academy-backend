@@ -66,6 +66,7 @@ from app.use_cases.identity.refresh_session import RefreshSessionUseCase
 from app.use_cases.identity.session_issuer import SessionIssuer
 from app.use_cases.identity.sign_in import SignIn
 from app.use_cases.identity.sign_out import SignOut
+from app.use_cases.inventory.stock import Inventory
 from app.use_cases.platform.feature_flags import (
     ListFlags,
     ResolveTenantFeatures,
@@ -144,6 +145,7 @@ class UseCases:
     online_payments: OnlinePayments
     platform_billing: PlatformBilling
     spending: Spending
+    inventory: Inventory
 
 
 @dataclass
@@ -459,6 +461,7 @@ def build_container(
             allow_test_keys=settings.payments_allow_test_keys,
         ),
         platform_billing=platform_billing,
+        inventory=Inventory(uow_factory=uow, clock=clock),
         spending=Spending(
             uow_factory=uow, clock=clock, school_time=school_time, store=object_store
         ),

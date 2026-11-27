@@ -26,6 +26,7 @@ from app.infrastructure.persistence.repositories.identity import (
     SqlRefreshSessionRepository,
     SqlUserRepository,
 )
+from app.infrastructure.persistence.repositories.inventory import SqlInventoryRepository
 from app.infrastructure.persistence.repositories.online_payments import (
     SqlOnlinePaymentRepository,
 )
@@ -91,6 +92,7 @@ class SqlAlchemyUnitOfWork:
         self.online_payments = SqlOnlinePaymentRepository(s, self._scope)
         self.subscriptions = SqlSubscriptionRepository(s, self._scope)
         self.spending = SqlSpendingRepository(s, self._scope)
+        self.inventory = SqlInventoryRepository(s, self._scope)
         return self
 
     async def __aexit__(

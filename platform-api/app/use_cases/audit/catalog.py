@@ -112,6 +112,14 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "finance.expense_approved": ActionInfo("Approved an expense", _F),
         "finance.expense_rejected": ActionInfo("Rejected an expense", _F),
         "finance.expense_voided": ActionInfo("Cancelled an expense", _F),
+        # Inventory
+        "inventory.item_added": ActionInfo("Added a stock item", _F),
+        "inventory.item_updated": ActionInfo("Changed a stock item", _F),
+        "inventory.stock_receive": ActionInfo("Received stock", _F),
+        "inventory.stock_issue": ActionInfo("Issued stock", _F),
+        "inventory.stock_return": ActionInfo("Took back stock", _F),
+        "inventory.stock_adjust": ActionInfo("Corrected stock after a count", _F),
+        "inventory.stock_write_off": ActionInfo("Wrote off stock", _F),
         # School account
         "tenant.registered": ActionInfo("Signed up the school", _SC),
         "tenant.email_verified": ActionInfo("Confirmed the school's email", _SC),
