@@ -4,7 +4,7 @@ The handover file for this repository. **Read it first in every session, and upd
 of every task** (what changed, what's next, any new decision). Keep it short and current: replace
 stale lines rather than appending history forever. Detailed history lives in git and in PR #1.
 
-Last updated: 27 Nov 2026, after commit `0182ef1` (gradebook). Next: results and report cards.
+Last updated: 28 Nov 2026, after commit `58cfd35` (results and report cards). Next: the portal.
 
 ---
 
@@ -77,7 +77,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
 | `ce575ff` | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
-| (this commit) | Results and report cards: broadsheet with totals, cumulative scores from earlier released terms, grades, competition-ranked positions and class statistics; class teacher and head comments; release once every subject is approved, freezing each card, telling students and guardians in-app and guardians by email; families see only released cards; withdraw with a reason, then release a new version; marks and comments locked while results are out |
+| `58cfd35` | Results and report cards: broadsheet with totals, cumulative scores from earlier released terms, grades, competition-ranked positions and class statistics; class teacher and head comments; release once every subject is approved, freezing each card, telling students and guardians in-app and guardians by email; families see only released cards; withdraw with a reason, then release a new version; marks and comments locked while results are out |
 | `0182ef1` | Assessment and gradebook: a scheme per school level (parts adding to 100, fixed once the term has marks), a grading scale covering 0 to 100, score sheets per class, subject and term with batch autosave, exemptions for students not taking a subject, submit, recall, two-person approval (DB-enforced), send back and reopen with reasons, marks frozen by trigger outside draft, every mark change logged |
 | `6a9bdd3` | Boarding: hostels with a warden and rooms with beds, boarders allocated without overfilling a room or bed, a roll call showing who is away, exeats asked for by guardians (or staff) and decided by someone else (DB-enforced), one open exeat per boarder, signed out and back in with guardians told at each step, overdue list |
 | `09b0adf` | Transport: bus routes with a driver, seats and ordered stops, students assigned with seat checks under a lock, a driver-only manifest in pickup order, boarding, drop-off and absence recorded append-only with guardians told each time, guardians see their child's route, today's trips and history |
