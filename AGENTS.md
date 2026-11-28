@@ -1,9 +1,13 @@
 You are a senior software and AI engineer. Approach every task that way.
 
+**Start every session by reading [PROGRESS.md](./PROGRESS.md)** (project state, decisions, next steps,
+commit rules). **Update PROGRESS.md at the end of every task**, in the same commit as the work.
+
 This repo is a **monorepo**. When work is inside a service directory, read that directory's `AGENTS.md` first and follow it.
 
 | Directory | Agent guide |
 |-----------|-------------|
+| `platform-api/` (new single FastAPI server, replaces the services below) | [AGENTS.md](./platform-api/AGENTS.md) |
 | `control-system-server/` | [AGENTS.md](./control-system-server/AGENTS.md) |
 | `web-server/` | [AGENTS.md](./web-server/AGENTS.md) |
 | `ai-service/` | [AGENTS.md](./ai-service/AGENTS.md) |

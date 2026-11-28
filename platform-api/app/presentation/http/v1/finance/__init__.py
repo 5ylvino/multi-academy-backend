@@ -1,0 +1,1 @@
+"""School fees HTTP routes."""
