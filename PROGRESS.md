@@ -77,6 +77,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
 | `ce575ff` | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
+| (this commit) | Results and report cards: broadsheet with totals, cumulative scores from earlier released terms, grades, competition-ranked positions and class statistics; class teacher and head comments; release once every subject is approved, freezing each card, telling students and guardians in-app and guardians by email; families see only released cards; withdraw with a reason, then release a new version; marks and comments locked while results are out |
 | `0182ef1` | Assessment and gradebook: a scheme per school level (parts adding to 100, fixed once the term has marks), a grading scale covering 0 to 100, score sheets per class, subject and term with batch autosave, exemptions for students not taking a subject, submit, recall, two-person approval (DB-enforced), send back and reopen with reasons, marks frozen by trigger outside draft, every mark change logged |
 | `6a9bdd3` | Boarding: hostels with a warden and rooms with beds, boarders allocated without overfilling a room or bed, a roll call showing who is away, exeats asked for by guardians (or staff) and decided by someone else (DB-enforced), one open exeat per boarder, signed out and back in with guardians told at each step, overdue list |
 | `09b0adf` | Transport: bus routes with a driver, seats and ordered stops, students assigned with seat checks under a lock, a driver-only manifest in pickup order, boarding, drop-off and absence recorded append-only with guardians told each time, guardians see their child's route, today's trips and history |
@@ -89,7 +90,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `39f1562` | Platform billing: plan prices (base + per student, per term by default), a subscription per school, invoices issued a week ahead, reminders, 14-day grace then suspension, payment (platform Paystack account, recorded bank transfer, or waiver) reinstates only billing suspensions; emailed pay link that works while suspended; console list/record/void/change plan/run; worker every 15 minutes |
 | `5f285a9` | Audit trail: every change recorded with who, what, field changes, request id, IP and device; append-only and RLS-protected; search, CSV export and plain-English labels for school leaders and owner staff; tests that fail when a new use case forgets to audit |
 
-**Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0018`:
+**Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0019`:
 
 1. `0001` foundation, identity, tenancy, platform
 2. `0002` school users, invites, academics
@@ -116,8 +117,10 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
     two-person CHECK and one open exeat per boarder; RLS; no deletes of exeats)
 18. `0018` assessment gradebook (scheme parts, grade bands, score sheets with a two-person
     CHECK, marks and exemptions frozen by trigger outside draft; RLS)
+19. `0019` assessment results (report card comments, releases per class and term, frozen
+    report cards; RLS; no deletes)
 
-**Quality at last run:** 448 tests pass, coverage 92%, ruff, mypy --strict and the 5
+**Quality at last run:** 461 tests pass, coverage 92%, ruff, mypy --strict and the 5
 import-linter contracts clean.
 
 **Not verified:** the Docker image was not rebuilt after the `app/` move (no Docker in the cloud
@@ -129,7 +132,7 @@ Next, in order:
 
 1. Hardening pass: console tables to their own schema and DB role.
 2. **Phase 3** (school life): communication, safeguarding, clinic, gate, transport, boarding
-   and the gradebook done; next results and report cards, then portal, reports. MFA mandatory
+   the gradebook, and results and report cards done; next the portal, then reports. MFA mandatory
    for director, school admin, bursar, IT admin.
 3. **Phase 4** (growth): tutoring, intelligence (AI). AI tutor requirements from the owner
    (27 Nov 2026), see section 8.
@@ -157,6 +160,10 @@ Follow-ups noted:
 - Boarding: a worker alert to the warden and guardians when a boarder becomes overdue, nightly
   roll-call records, matching hostel type to the student's sex once the profile holds it,
   boarding fees billed from the allocation.
+- Results: a printable PDF report card with the school's crest and signatures; affective and
+  psychomotor ratings (punctuality, neatness, sports) on the card; end-of-session promotion
+  from the third term's results; a check that report card emails aren't sent twice if a send
+  fails part way.
 - Communication: web push and SMS for urgent alerts (email only today); attachments on
   messages; read receipts per person for urgent alerts in the console.
 - Payroll: remitting PAYE and pension to the authorities (payable accounts are ready; a
@@ -173,6 +180,7 @@ The full plan is the Claude Doc "MA-SMS Rebuild Plan"
 
 | Decision | Why |
 | --- | --- |
+| Report cards are frozen JSON snapshots taken at release, versioned, never deleted | What a family was shown stays exactly as shown, even if scales, names or marks change later. A correction is a withdrawal with a reason and a new version, so the history is auditable |
 | One FastAPI codebase, one image, several process roles | One deploy and one codebase, while each role still scales on its own |
 | Four clean-architecture layers in `platform-api/app/` (not `src/<pkg>`) | Owner's chosen layout. Business rules stay testable without a database or framework |
 | One shared Postgres with `tenant_id` first in every school table's key and RLS (`tenant_isolation`, `masms_current_tenant()`) | Same isolation as a database per school at much lower cost. Ready to shard by tenant later. Tests prove one school can't read another's rows |

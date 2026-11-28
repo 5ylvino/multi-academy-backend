@@ -429,6 +429,12 @@ class Gradebook:
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
             sheet, term, cls, teacher = await self._load(uow, sheet_id)
             submitter = sheet.submitted_by
+            release = await uow.assessment.get_release(term.id, cls.id)
+            if release is not None and release.visible:
+                raise InvalidStateTransition(
+                    "Results for this class are out. Withdraw them before changing marks.",
+                    code="results_released",
+                )
             sheet.reopen(note=note, now=now)
             await uow.assessment.save_sheet(sheet)
             await self._tell(uow, sheet, cls, teacher or submitter, "reopened", sheet.note, now)

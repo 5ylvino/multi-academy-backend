@@ -34,6 +34,8 @@ from app.infrastructure.storage.local import LocalObjectStore
 from app.infrastructure.storage.s3 import S3ObjectStore
 from app.use_cases.academics.structure import AcademicCalendar, ClassesAndSubjects, Enrolments
 from app.use_cases.assessment.gradebook import Gradebook
+from app.use_cases.assessment.notifications import SendReportCardEmails
+from app.use_cases.assessment.results import Results
 from app.use_cases.assessment.setup import AssessmentSetup
 from app.use_cases.attendance.registers import StudentRegisters
 from app.use_cases.attendance.staff import StaffAttendance
@@ -170,6 +172,7 @@ class UseCases:
     hostels: Hostels
     assessment_setup: AssessmentSetup
     gradebook: Gradebook
+    results: Results
 
 
 @dataclass
@@ -496,6 +499,7 @@ def build_container(
         hostels=Hostels(uow_factory=uow, clock=clock),
         assessment_setup=AssessmentSetup(uow_factory=uow),
         gradebook=Gradebook(uow_factory=uow, clock=clock, school_time=school_time),
+        results=Results(uow_factory=uow, clock=clock),
         spending=Spending(
             uow_factory=uow, clock=clock, school_time=school_time, store=object_store
         ),
@@ -531,6 +535,9 @@ def build_container(
     ]
     handlers["operations.clinic_visit_closed"] = [
         SendUrgentClinicEmail(email=email, uow_factory=uow, school_app_url=settings.school_app_url)
+    ]
+    handlers["assessment.results_released"] = [
+        SendReportCardEmails(email=email, uow_factory=uow, school_app_url=settings.school_app_url)
     ]
     outbox = OutboxRelay(session_factory, handlers)
     return Container(

@@ -152,6 +152,7 @@ def mailbox(container: Container) -> Mailbox:
                 "communication.urgent_announcement",
                 "safeguarding.urgent_concern",
                 "operations.clinic_visit_closed",
+                "assessment.results_released",
             )
         },
     )

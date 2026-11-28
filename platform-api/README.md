@@ -157,6 +157,10 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | GET/PUT | `/api/v1/assessment/sheet`, `/sheet/marks`, `/sheet/exemptions` | the subject's teacher (`results:create`) or `results:approve`; the class teacher and `results:view_all` can read |
 | POST | `/api/v1/assessment/sheets/{id}/submit`, `/recall`, `/approve`, `/send-back`, `/reopen` | teacher submits and recalls; `results:approve` decides (never their own) |
 | GET | `/api/v1/assessment/terms/{id}/classes/{id}/sheets`, `/my-sheets`, `/awaiting-approval` | class teacher and leaders; the teacher; approvers |
+| GET | `/api/v1/assessment/terms/{id}/classes/{id}/broadsheet` | the class teacher, `results:view_all` or `results:approve` |
+| POST | `/api/v1/assessment/terms/{id}/classes/{id}/release`, `/withdraw` | `results:approve` |
+| GET | `/api/v1/assessment/students/{id}/report-cards`, `/report-cards/{term_id}` | the student and guardians (released only); class teacher and leaders (live preview before release) |
+| PUT | `/api/v1/assessment/students/{id}/report-cards/{term_id}/comments` | class teacher's comment: the class teacher; head's comment: `results:approve` |
 | GET/POST/PUT | `/api/v1/transport/routes`, `/{id}`, `/{id}/stops`; PUT/DELETE `/transport/stops/{id}` | `transport:manage` (office); `transport:read` staff can list |
 | PUT/DELETE | `/api/v1/transport/students/{id}` | `transport:manage`: put a student on a route and stop |
 | GET/POST | `/api/v1/transport/routes/{id}/manifest`, `/{id}/boardings` | the route's driver (`transport:board`) or the office; staff with `transport:read` see manifests |
@@ -323,6 +327,22 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
   notice. A leader approves (never their own submission, enforced in the database too), sends it
   back with a reason, or reopens an approved sheet with a reason; the teacher is told.
 - Marks can't change once a sheet leaves draft: the app checks, and a database trigger refuses.
+
+## Results and report cards
+
+- The broadsheet shows each student's would-be report card from the marks as they stand, which
+  subjects still block release, and the class average. A subject's total is the sum of its parts;
+  in the second and third terms the cumulative score (the average of this and earlier released
+  terms' totals) sets the grade. Positions use competition ranking (1, 2, 2, 4); a student who
+  doesn't take a subject is left out of it. Every figure rounds half up to two places.
+- The class teacher writes a comment per student and a leader writes the head's comment.
+- A leader with `results:approve` releases a class once every subject is approved. Each report
+  card is frozen at release (scores, positions, attendance, comments, scale, next term's start),
+  the student and guardians get an inbox notice, and guardians get an email that links to the
+  card without any scores in it.
+- Students and guardians only ever see released cards. While results are out, marks can't be
+  reopened and comments can't change. Withdrawing (with a reason) hides the cards and allows
+  corrections; releasing again publishes the next version. Report cards are never deleted.
 
 ## Transport
 

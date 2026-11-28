@@ -86,6 +86,9 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "assessment.sheet_approved": ActionInfo("Approved marks", _A),
         "assessment.sheet_sent_back": ActionInfo("Sent marks back to the teacher", _A),
         "assessment.sheet_reopened": ActionInfo("Reopened approved marks", _A),
+        "assessment.comment_saved": ActionInfo("Wrote a report card comment", _A),
+        "assessment.results_released": ActionInfo("Released results to families", _A),
+        "assessment.results_withdrawn": ActionInfo("Withdrew released results", _A),
         # Attendance
         "attendance.register_submitted": ActionInfo("Took the class register", _T),
         "attendance.mark_corrected": ActionInfo("Corrected an attendance mark", _T),
