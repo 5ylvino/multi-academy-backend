@@ -17,6 +17,7 @@ from app.domain.communication.repositories import FeedItem, Reader
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.shared.errors import NotFound, PermissionDenied, ValidationFailed
 from app.domain.shared.value_objects import Page
+from app.use_cases.academics.sections import scope_of
 from app.use_cases.shared import audit
 from app.use_cases.shared.pagination import clamp_limit
 from app.use_cases.shared.ports import Clock, Scope, UnitOfWork, UnitOfWorkFactory
@@ -112,7 +113,7 @@ class Announcements:
         now = self._clock.now()
         audience = Audience.of(draft.roles, draft.class_ids)
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
-            await self._check_reach(uow, actor, audience)
+            audience = await self._check_reach(uow, actor, audience)
             announcement = Announcement.publish(
                 tenant_id=tenant_id,
                 title=draft.title,
@@ -155,7 +156,7 @@ class Announcements:
             if a.author_id != actor.user_id:
                 actor.require("announcements:update")
             if audience != a.audience:
-                await self._check_reach(uow, actor, audience)
+                audience = await self._check_reach(uow, actor, audience)
             before = _fields(a)
             a.edit(
                 title=draft.title,
@@ -292,21 +293,36 @@ class Announcements:
         return a.author_id == actor.user_id or actor.permissions.allows("announcements:update")
 
     @staticmethod
-    async def _check_reach(uow: UnitOfWork, actor: Principal, audience: Audience) -> None:
-        """School leaders can announce to anyone. Teachers only to classes they teach."""
-        if audience.class_ids:
-            found = {
-                c.id for c in await uow.academics.list_classes(level=None, include_inactive=True)
-            }
-            if not audience.class_ids <= found:
-                raise ValidationFailed("Unknown class.", details={"field": "class_ids"})
+    async def _check_reach(uow: UnitOfWork, actor: Principal, audience: Audience) -> Audience:
+        """Whole-school leaders can announce to anyone. A section's heads reach their own
+        section (no classes picked means every class in it). Teachers reach the classes they
+        teach."""
+        classes = await uow.academics.list_classes(level=None, include_inactive=True)
+        if audience.class_ids and not audience.class_ids <= {c.id for c in classes}:
+            raise ValidationFailed("Unknown class.", details={"field": "class_ids"})
         if actor.permissions.allows("announcements:school_wide"):
-            return
+            scope = await scope_of(uow, actor)
+            if scope.whole_school:
+                return audience
+            mine = {c.id for c in classes if scope.covers(c.school_level)}
+            if audience.class_ids:
+                if not audience.class_ids <= mine:
+                    raise PermissionDenied(
+                        "Some of those classes are in another section.", code="other_section"
+                    )
+                return audience
+            active = {c.id for c in classes if c.id in mine and c.active}
+            if not active:
+                raise ValidationFailed(
+                    "Your section has no classes yet.", details={"field": "class_ids"}
+                )
+            return Audience(roles=audience.roles, class_ids=frozenset(active))
         taught = await uow.academics.classes_taught_by(actor.user_id)
         if not audience.class_ids or not audience.class_ids <= taught:
             raise PermissionDenied(
                 "You can announce to the classes you teach.", code="outside_your_classes"
             )
+        return audience
 
     @staticmethod
     async def _get(
@@ -332,6 +348,14 @@ async def reader_of(uow: UnitOfWork, actor: Principal) -> Reader:
         classes |= await uow.academics.classes_of_students(students, term.session_id)
     if roles - {SchoolRole.STUDENT.value, SchoolRole.PARENT.value}:
         classes |= await uow.academics.classes_taught_by(actor.user_id)
+        scope = await scope_of(uow, actor)
+        if not scope.whole_school and scope.levels:
+            # Section staff read what is sent to any class of their section.
+            classes |= {
+                c.id
+                for c in await uow.academics.list_classes(level=None, include_inactive=False)
+                if scope.covers(c.school_level)
+            }
     return Reader(user_id=actor.user_id, roles=roles, class_ids=frozenset(classes))
 
 

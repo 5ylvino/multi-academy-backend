@@ -11,7 +11,7 @@ import pytest
 
 from app.infrastructure.container import Container
 from tests.integration.conftest import Mailbox
-from tests.integration.helpers import bearer
+from tests.integration.helpers import bearer, section_id
 from tests.integration.test_clinic_and_gate import _notices, _setup
 from tests.integration.test_finance_flows import _member
 
@@ -41,7 +41,7 @@ async def test_hostel_rooms_and_exeats(
         d,
         slug="board",
         email="warden@board.ng",
-        role="principal",
+        role="head_teacher",
         name="Wale Warden",
     )
 
@@ -80,6 +80,26 @@ async def test_hostel_rooms_and_exeats(
             f"{HO}/boarders/{student}", headers=bearer(d), json={"room_id": room, "bed": bed}
         )
 
+    # Boarding starts off in a primary section; this school runs a primary boarding house.
+    off = await allocate(s1, rooms["Room 1"], "1A")
+    assert off.json()["code"] == "section_feature_off"
+    primary = await section_id(client, d, "primary")
+    on = await client.put(
+        f"/api/v1/academics/sections/{primary}/features",
+        headers=bearer(d),
+        json={
+            "features": [
+                "attendance",
+                "gradebook",
+                "report_cards",
+                "clinic",
+                "gate",
+                "transport",
+                "boarding",
+            ]
+        },
+    )
+    assert on.status_code == 200, on.text
     assert (await allocate(s1, rooms["Room 1"], "1A")).status_code == 200
     assert (await allocate(s2, rooms["Room 1"], "1A")).json()["code"] == "bed_taken"
     assert (await allocate(s2, rooms["Room 1"], "1B")).status_code == 200
@@ -136,12 +156,15 @@ async def test_hostel_rooms_and_exeats(
     assert ok.json()["status"] == "approved"
     out = await client.post(f"{HO}/exeats/{eid}/sign-out", headers=bearer(d))
     assert out.json()["status"] == "out"
-    roll = (await client.get(f"{HO}/{hid}/residents", headers=bearer(warden))).json()
+    roll = (await client.get(f"{HO}/{hid}/residents", headers=bearer(d))).json()
     assert [(x["student_name"], x["bed"], x["away"]) for x in roll] == [
         ("Ada Obi", "1A", True),
         ("Bola Ade", "1B", False),
         ("Chidi Okeke", None, False),
     ]
+    # The head teacher's roll call holds only their own section's boarders.
+    mine = (await client.get(f"{HO}/{hid}/residents", headers=bearer(warden))).json()
+    assert [x["student_name"] for x in mine] == ["Ada Obi", "Bola Ade"]
     assert (await client.delete(f"{HO}/boarders/{s1}", headers=bearer(d))).json()[
         "code"
     ] == "exeat_open"
@@ -163,10 +186,25 @@ async def test_hostel_rooms_and_exeats(
     rid = raised.json()["id"]
     own = await client.post(f"{HO}/exeats/{rid}/approve", headers=bearer(d), json={})
     assert own.json()["code"] == "self_approval"
-    blank = await client.post(f"{HO}/exeats/{rid}/reject", headers=bearer(warden), json={})
+    # Chidi is in secondary: the head teacher can't decide, the principal can.
+    other = await client.post(
+        f"{HO}/exeats/{rid}/reject", headers=bearer(warden), json={"note": "No"}
+    )
+    assert other.json()["code"] == "other_section"
+    principal = await _member(
+        client,
+        container,
+        mailbox,
+        d,
+        slug="board",
+        email="principal@board.ng",
+        role="principal",
+        name="Pat Principal",
+    )
+    blank = await client.post(f"{HO}/exeats/{rid}/reject", headers=bearer(principal), json={})
     assert blank.status_code == 422
     no = await client.post(
-        f"{HO}/exeats/{rid}/reject", headers=bearer(warden), json={"note": "Exams on Monday"}
+        f"{HO}/exeats/{rid}/reject", headers=bearer(principal), json={"note": "Exams on Monday"}
     )
     assert (no.json()["status"], no.json()["decision_note"]) == ("rejected", "Exams on Monday")
 

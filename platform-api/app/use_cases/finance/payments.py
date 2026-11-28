@@ -18,6 +18,7 @@ from app.domain.identity.roles import Realm
 from app.domain.shared.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.domain.shared.money import Money
 from app.domain.shared.value_objects import Page
+from app.use_cases.academics.sections import ensure_student_in_scope, visible_students
 from app.use_cases.finance.common import (
     MoneyView,
     check_currency,
@@ -198,6 +199,7 @@ class Payments:
             currency = check_currency(settings, cmd.currency)
             fingerprint = _fingerprint(cmd, currency, received_on)
             await require_student(uow, tenant_id, cmd.student_id)
+            await ensure_student_in_scope(uow, actor, cmd.student_id)
             await uow.finance.lock_student(cmd.student_id)
             earlier = await uow.finance.payment_by_key(actor.user_id, key)
             if earlier is not None:
@@ -265,6 +267,7 @@ class Payments:
             found = await uow.finance.get_payment(payment_id)
             if found is None:
                 raise NotFound("Payment not found.")
+            await ensure_student_in_scope(uow, actor, found.student_id)
             if found.method is PaymentMethod.ONLINE:
                 raise ValidationFailed("Online payments are reversed through the gateway.")
             await uow.finance.lock_student(found.student_id)
@@ -324,13 +327,21 @@ class Payments:
     ) -> Page[PaymentView]:
         actor.require_realm(Realm.SCHOOL)
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
-            if not actor.permissions.allows("payments:view"):
+            staff = actor.permissions.allows("payments:view")
+            if not staff:
                 student_id = student_id or actor.user_id
                 await ensure_can_see(uow, actor, student_id, staff_permission="payments:view")
+            elif student_id is not None:
+                await ensure_student_in_scope(uow, actor, student_id)
             page = await uow.finance.list_payments(
                 student_id=student_id, cursor=cursor, limit=max(1, min(limit, 100))
             )
-        return Page(items=[PaymentView.of(p) for p in page.items], next_cursor=page.next_cursor)
+            ids = {p.student_id for p in page.items}
+            shown = await visible_students(uow, actor, ids) if staff else ids
+        return Page(
+            items=[PaymentView.of(p) for p in page.items if p.student_id in shown],
+            next_cursor=page.next_cursor,
+        )
 
     # ---- refunds -------------------------------------------------------------------------
 

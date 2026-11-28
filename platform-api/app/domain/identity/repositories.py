@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Protocol
 from uuid import UUID
@@ -12,6 +13,18 @@ from app.domain.identity.mfa import TotpFactor
 from app.domain.identity.session import RefreshSession
 from app.domain.identity.user import UserAccount
 from app.domain.shared.value_objects import EmailAddress, Page
+
+
+@dataclass(frozen=True, slots=True)
+class SectionFilter:
+    """People a section's staff may see: staff of those sections, staff who serve the whole
+    school (no section roles, not in any section), students in classes of those levels this
+    session, and those students' guardians."""
+
+    section_ids: frozenset[UUID]
+    levels: frozenset[str]
+    section_roles: frozenset[str]
+    session_id: UUID | None
 
 
 class UserRepository(Protocol):
@@ -53,7 +66,10 @@ class UserRepository(Protocol):
         search: str | None,
         cursor: str | None,
         limit: int,
-    ) -> Page[UserAccount]: ...
+        within: SectionFilter | None = None,
+    ) -> Page[UserAccount]:
+        """``within`` limits the list to one part of the school (see ``SectionFilter``)."""
+        ...
 
 
 class InviteRepository(Protocol):

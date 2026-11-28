@@ -24,6 +24,7 @@ from app.domain.assessment.scheme import (
 )
 from app.domain.identity.roles import Realm
 from app.domain.shared.errors import InvalidStateTransition, ValidationFailed
+from app.use_cases.academics.sections import scope_of
 from app.use_cases.shared import audit
 from app.use_cases.shared.ports import Scope, UnitOfWork, UnitOfWorkFactory
 from app.use_cases.shared.principal import Principal
@@ -109,6 +110,7 @@ class AssessmentSetup:
         clean = check_scheme(specs)
         tenant_id = actor.school_tenant_id
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
+            (await scope_of(uow, actor)).require(level)
             if await _locked(uow, level):
                 raise InvalidStateTransition(
                     "Marks are already recorded this term, so the parts can't change until "
@@ -171,6 +173,7 @@ class AssessmentSetup:
         level = level_of(school_level)
         clean = check_scale(bands)
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
+            (await scope_of(uow, actor)).require(level)
             before = await uow.assessment.scale(level)
             await uow.assessment.replace_scale(level, clean)
             uow.audit(

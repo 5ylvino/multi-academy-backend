@@ -9,7 +9,7 @@ from types import TracebackType
 from typing import Any, Protocol, Self
 from uuid import UUID
 
-from app.domain.academics.repositories import AcademicsRepository
+from app.domain.academics.repositories import AcademicsRepository, SectionRepository
 from app.domain.assessment.repositories import AssessmentRepository
 from app.domain.attendance.repositories import AttendanceRepository
 from app.domain.communication.repositories import CommunicationRepository
@@ -323,6 +323,9 @@ class UnitOfWork(Protocol):
 
     @property
     def academics(self) -> AcademicsRepository: ...
+
+    @property
+    def sections(self) -> SectionRepository: ...
 
     @property
     def finance(self) -> FinanceRepository: ...

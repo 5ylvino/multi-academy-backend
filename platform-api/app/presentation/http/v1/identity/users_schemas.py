@@ -15,6 +15,12 @@ class InviteUserRequest(ApiModel):
     full_name: str = Field(min_length=2, max_length=160)
     roles: list[str] = Field(min_length=1, max_length=8)
     capabilities: list[str] = Field(default_factory=list, max_length=64)
+    section_ids: list[UUID] | None = Field(
+        default=None,
+        max_length=3,
+        description="Sections a head, teacher or section staff member works in. Required for "
+        "heads and teachers when the school has more than one section.",
+    )
 
 
 class AcceptInviteRequest(ApiModel):

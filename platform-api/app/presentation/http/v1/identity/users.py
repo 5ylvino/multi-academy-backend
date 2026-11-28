@@ -35,6 +35,7 @@ async def invite_user(
             full_name=body.full_name,
             roles=body.roles,
             capabilities=body.capabilities,
+            section_ids=body.section_ids,
         ),
     )
     return SchoolUserResponse.model_validate(view)

@@ -15,8 +15,15 @@ ADMIN_PASSWORD = "Strong-Passphrase-2026"
 
 
 async def register_and_verify(
-    client: httpx.AsyncClient, container: Container, mailbox: Mailbox, *, slug: str, email: str
+    client: httpx.AsyncClient,
+    container: Container,
+    mailbox: Mailbox,
+    *,
+    slug: str,
+    email: str,
+    **extra: Any,
 ) -> dict[str, Any]:
+    """Registers and verifies a school (primary and secondary unless ``extra`` says otherwise)."""
     resp = await client.post(
         "/api/v1/schools",
         json={
@@ -26,6 +33,7 @@ async def register_and_verify(
             "admin_full_name": "Ngozi Eze",
             "admin_email": email,
             "admin_password": ADMIN_PASSWORD,
+            **extra,
         },
     )
     assert resp.status_code == 201, resp.text
@@ -101,3 +109,42 @@ async def platform_session(
 
 def bearer(session: dict[str, Any]) -> dict[str, str]:
     return {"Authorization": f"Bearer {session['access_token']}"}
+
+
+SECTION_ROLES = frozenset(
+    {
+        "head_teacher",
+        "assistant_head_teacher",
+        "principal",
+        "vice_principal",
+        "class_teacher",
+        "subject_teacher",
+    }
+)
+
+
+async def section_id(client: httpx.AsyncClient, who: dict[str, Any], level: str) -> str:
+    """The id of the section holding ``level``."""
+    r = await client.get("/api/v1/academics/sections", headers=bearer(who))
+    assert r.status_code == 200, r.text
+    for section in r.json():
+        if level in section["levels"]:
+            return str(section["id"])
+    raise AssertionError(f"no section holds {level}")
+
+
+async def invite_body(
+    client: httpx.AsyncClient,
+    director: dict[str, Any],
+    *,
+    email: str,
+    name: str,
+    role: str,
+    level: str | None = None,
+) -> dict[str, Any]:
+    """An invite request; heads and teachers are placed in the fitting section."""
+    body: dict[str, Any] = {"email": email, "full_name": name, "roles": [role]}
+    if role in SECTION_ROLES:
+        want = "secondary" if role in {"principal", "vice_principal"} else (level or "primary")
+        body["section_ids"] = [await section_id(client, director, want)]
+    return body

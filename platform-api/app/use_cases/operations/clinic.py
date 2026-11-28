@@ -19,12 +19,18 @@ from datetime import datetime, timedelta
 from typing import Any
 from uuid import UUID
 
+from app.domain.academics.sections import SectionFeature
 from app.domain.communication.inbox import Notification, NotificationKind
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.operations.clinic import ClinicVisit, HealthRecord, Outcome
 from app.domain.operations.repositories import StoredHealthRecord, StoredVisit
 from app.domain.shared.errors import NotFound, PermissionDenied, ValidationFailed
 from app.domain.shared.value_objects import Page
+from app.use_cases.academics.sections import (
+    ensure_student_in_scope,
+    serve_student,
+    visible_students,
+)
 from app.use_cases.identity.guardians import is_guardian_or_self
 from app.use_cases.shared import audit
 from app.use_cases.shared.pagination import clamp_limit
@@ -126,6 +132,7 @@ class Clinic:
             family = await is_guardian_or_self(uow, actor, student_id)
             if not family:
                 actor.require("clinic:manage")
+                await ensure_student_in_scope(uow, actor, student_id)
             stored = await uow.clinic.get_record(student_id)
             if not family:
                 uow.audit(
@@ -152,6 +159,7 @@ class Clinic:
                 and await uow.guardians.is_guardian(actor.user_id, student_id)
             ):
                 actor.require("clinic:manage")
+                await ensure_student_in_scope(uow, actor, student_id)
             before = self._view(student_id, await uow.clinic.get_record(student_id))
             record = HealthRecord.build(
                 tenant_id=tenant_id,
@@ -208,6 +216,7 @@ class Clinic:
         tenant_id = actor.school_tenant_id
         async with self._uow_factory(Scope.tenant(tenant_id), read_only=True) as uow:
             student = await _student(uow, tenant_id, student_id)
+            await ensure_student_in_scope(uow, actor, student_id)
             stored = await uow.clinic.get_record(student_id)
         data = self._open(stored.alert_ciphertext) if stored and stored.alert_ciphertext else {}
         return AlertView(
@@ -228,6 +237,7 @@ class Clinic:
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             name = await _student(uow, tenant_id, student_id)
+            await serve_student(uow, actor, student_id, SectionFeature.CLINIC)
             visit = ClinicVisit.open(
                 tenant_id=tenant_id,
                 student_id=student_id,
@@ -255,6 +265,7 @@ class Clinic:
         tenant_id = actor.school_tenant_id
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             visit = await self._load(uow, tenant_id, visit_id, for_update=True)
+            await ensure_student_in_scope(uow, actor, visit.student_id)
             visit.update(
                 assessment=notes.assessment,
                 treatment=notes.treatment,
@@ -286,6 +297,7 @@ class Clinic:
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             visit = await self._load(uow, tenant_id, visit_id, for_update=True)
+            await ensure_student_in_scope(uow, actor, visit.student_id)
             visit.close(outcome=result, now=now)
             await uow.clinic.save_visit(self._store(visit))
             uow.track(visit)
@@ -332,8 +344,11 @@ class Clinic:
         actor.require_realm(Realm.SCHOOL)
         tenant_id = actor.school_tenant_id
         async with self._uow_factory(Scope.tenant(tenant_id), read_only=True) as uow:
-            if student_id is None or not await is_guardian_or_self(uow, actor, student_id):
+            family = student_id is not None and await is_guardian_or_self(uow, actor, student_id)
+            if not family:
                 actor.require("clinic:manage")
+                if student_id is not None:
+                    await ensure_student_in_scope(uow, actor, student_id)
             since = None if student_id else self._clock.now() - timedelta(days=60)
             page = await uow.clinic.visits(
                 student_id=student_id,
@@ -343,10 +358,16 @@ class Clinic:
                 limit=clamp_limit(limit),
             )
             names = await uow.users.school_names({v.student_id for v in page.items})
+            shown = (
+                {v.student_id for v in page.items}
+                if family
+                else await visible_students(uow, actor, {v.student_id for v in page.items})
+            )
         return Page(
             items=[
                 _visit_view(self._visit(v, tenant_id), names.get(v.student_id, ""))
                 for v in page.items
+                if v.student_id in shown
             ],
             next_cursor=page.next_cursor,
         )

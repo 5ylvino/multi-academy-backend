@@ -7,7 +7,7 @@ import pytest
 
 from app.infrastructure.container import Container
 from tests.integration.conftest import Mailbox
-from tests.integration.helpers import bearer, register_and_verify
+from tests.integration.helpers import SECTION_ROLES, bearer, register_and_verify, section_id
 
 pytestmark = pytest.mark.integration
 
@@ -22,16 +22,16 @@ async def invite(
     roles: list[str],
     capabilities: list[str] | None = None,
 ) -> httpx.Response:
-    return await client.post(
-        "/api/v1/users",
-        headers=bearer(session),
-        json={
-            "email": email,
-            "full_name": "Chidi Okafor",
-            "roles": roles,
-            "capabilities": capabilities or [],
-        },
-    )
+    body: dict[str, object] = {
+        "email": email,
+        "full_name": "Chidi Okafor",
+        "roles": roles,
+        "capabilities": capabilities or [],
+    }
+    if set(roles) & SECTION_ROLES:
+        level = "secondary" if set(roles) & {"principal", "vice_principal"} else "primary"
+        body["section_ids"] = [await section_id(client, session, level)]
+    return await client.post("/api/v1/users", headers=bearer(session), json=body)
 
 
 async def test_invite_accept_and_sign_in(

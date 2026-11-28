@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any, ClassVar
 from uuid import UUID
 
+from app.domain.academics.sections import SectionFeature
 from app.domain.academics.structure import SchoolClass, Term
 from app.domain.assessment.gradebook import SheetStatus
 from app.domain.assessment.repositories import StoredReportCard
@@ -38,6 +39,12 @@ from app.domain.shared.errors import (
     ValidationFailed,
 )
 from app.domain.shared.events import DomainEvent
+from app.use_cases.academics.sections import (
+    ensure_student_in_scope,
+    require_feature,
+    scope_of,
+)
+from app.use_cases.assessment.gradebook import in_section
 from app.use_cases.assessment.setup import scale_for, scheme_for
 from app.use_cases.identity.guardians import is_guardian_or_self
 from app.use_cases.shared import audit
@@ -101,6 +108,8 @@ class Results:
         actor.require_realm(Realm.SCHOOL)
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
             term, cls = await _term(uow, term_id), await _class(uow, class_id)
+            await in_section(uow, actor, cls)
+            await require_feature(uow, cls.school_level, SectionFeature.REPORT_CARDS)
             _may_preview(actor, cls)
             statuses, result, cards = await self._build(uow, term, cls, approved_only=False)
             release = await uow.assessment.get_release(term.id, cls.id)
@@ -141,6 +150,7 @@ class Results:
             if class_id is None:
                 raise NotFound("This student wasn't in a class that term.")
             cls = await _class(uow, class_id)
+            await in_section(uow, actor, cls)
             _may_preview(actor, cls)
             if stored is not None and stored.visible:
                 await uow.rollback()
@@ -160,8 +170,10 @@ class Results:
         async with self._uow_factory(Scope.tenant(tenant_id), read_only=True) as uow:
             await _student(uow, tenant_id, student_id)
             family = await is_guardian_or_self(uow, actor, student_id)
-            if not family and not actor.permissions.allows(VIEW_ALL):
-                raise PermissionDenied("For the student, their guardians and school leaders.")
+            if not family:
+                if not actor.permissions.allows(VIEW_ALL):
+                    raise PermissionDenied("For the student, their guardians and school leaders.")
+                await ensure_student_in_scope(uow, actor, student_id)
             cards = await uow.assessment.report_cards_of(student_id)
         return [
             ReportSummary(
@@ -200,10 +212,12 @@ class Results:
             if class_id is None:
                 raise NotFound("This student isn't in a class this session.")
             cls = await _class(uow, class_id)
+            await in_section(uow, actor, cls)
             if set_teacher and cls.class_teacher_id != actor.user_id:
                 raise PermissionDenied("Only the class teacher writes this comment.")
             if set_head:
                 actor.require(APPROVE)
+                (await scope_of(uow, actor)).require(cls.school_level)
             release = await uow.assessment.get_release(term.id, cls.id)
             if release is not None and release.visible:
                 raise InvalidStateTransition(
@@ -236,6 +250,8 @@ class Results:
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             term, cls = await _term(uow, term_id), await _class(uow, class_id)
+            (await scope_of(uow, actor)).require(cls.school_level)
+            await require_feature(uow, cls.school_level, SectionFeature.REPORT_CARDS)
             release = await uow.assessment.get_release(term.id, cls.id, for_update=True)
             if release is not None and release.visible:
                 raise InvalidStateTransition(
@@ -330,6 +346,7 @@ class Results:
         actor.require_realm(Realm.SCHOOL)
         actor.require(APPROVE)
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
+            (await scope_of(uow, actor)).require((await _class(uow, class_id)).school_level)
             release = await uow.assessment.get_release(term_id, class_id, for_update=True)
             if release is None:
                 raise NotFound("These results haven't been released.")

@@ -5,8 +5,10 @@ from __future__ import annotations
 from dataclasses import dataclass
 from uuid import UUID
 
+from app.domain.academics.sections import ordered
 from app.domain.identity.roles import Realm
 from app.domain.shared.errors import TenantUnavailable
+from app.use_cases.academics.sections import scope_of
 from app.use_cases.platform.feature_flags import ResolveTenantFeatures
 from app.use_cases.shared.ports import Cache, Scope, UnitOfWorkFactory
 from app.use_cases.shared.principal import Principal
@@ -27,6 +29,20 @@ class SchoolBootstrap:
     user_id: UUID
     roles: list[str]
     permissions: list[str]
+    #: Every section of the school, with its levels and the features it uses.
+    sections: list[BootstrapSection]
+    #: True for whole-school leaders and staff serving the whole school.
+    whole_school: bool
+    #: The sections this person works in (every section when whole_school).
+    my_section_ids: list[UUID]
+
+
+@dataclass(frozen=True, slots=True)
+class BootstrapSection:
+    id: UUID
+    name: str
+    levels: list[str]
+    features: list[str]
 
 
 class GetSchoolBootstrap:
@@ -66,6 +82,23 @@ class GetSchoolBootstrap:
             }
             await self._cache.set_json(profile_key, profile, self.PROFILE_TTL_SECONDS)
 
+        async with self._uow_factory(Scope.tenant(tenant_id), read_only=True) as uow:
+            all_sections = await uow.sections.list_sections()
+            scope = await scope_of(uow, principal)
+        sections = [
+            BootstrapSection(
+                id=sec.id,
+                name=sec.name,
+                levels=[lvl.value for lvl in ordered(sec.levels)],
+                features=sorted(f.value for f in sec.features),
+            )
+            for sec in all_sections
+        ]
+        mine = (
+            [sec.id for sec in sections]
+            if scope.whole_school
+            else [sec.id for sec in sections if sec.id in scope.section_ids]
+        )
         features = await self._features(
             tenant_id, config_version=runtime.config_version, plan_code=runtime.plan_code
         )
@@ -82,4 +115,7 @@ class GetSchoolBootstrap:
             user_id=principal.user_id,
             roles=sorted(principal.roles),
             permissions=sorted(principal.permissions.grants),
+            sections=sections,
+            whole_school=scope.whole_school,
+            my_section_ids=mine,
         )

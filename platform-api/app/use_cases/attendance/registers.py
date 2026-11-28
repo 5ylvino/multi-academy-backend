@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from uuid import UUID
 
+from app.domain.academics.sections import SectionFeature
 from app.domain.attendance.register import (
     AttendanceStatus,
     StudentMark,
@@ -18,6 +19,7 @@ from app.domain.attendance.register import (
 )
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.shared.errors import NotFound, PermissionDenied, ValidationFailed
+from app.use_cases.academics.sections import require_feature, scope_of
 from app.use_cases.shared import audit
 from app.use_cases.shared.ports import (
     AuditEntry,
@@ -78,10 +80,16 @@ class SummaryView:
 
 
 async def _may_take(uow: UnitOfWork, actor: Principal, class_id: UUID) -> None:
-    if actor.permissions.allows("student_attendance:view_all"):
+    school_class = await uow.academics.get_class(class_id)
+    if school_class is None:
+        raise NotFound("Class not found.")
+    await require_feature(uow, school_class.school_level, SectionFeature.ATTENDANCE)
+    if await uow.academics.teaches_class(actor.user_id, class_id):
         return
-    if not await uow.academics.teaches_class(actor.user_id, class_id):
-        raise PermissionDenied("You can only take the register for classes you teach.")
+    if actor.permissions.allows("student_attendance:view_all"):
+        (await scope_of(uow, actor)).require(school_class.school_level)
+        return
+    raise PermissionDenied("You can only take the register for classes you teach.")
 
 
 class StudentRegisters:
@@ -278,18 +286,27 @@ class StudentRegisters:
                 raise ValidationFailed(
                     "Pick a range of up to 400 days.", details={"field": "range"}
                 )
-            if actor.user_id != student_id and not actor.permissions.allows(
-                "student_attendance:view_all"
-            ):
+            if actor.user_id != student_id:
                 class_id = (
                     await uow.academics.class_of_student(student_id, term.session_id)
                     if term
                     else None
                 )
-                if class_id is None or not await uow.academics.teaches_class(
+                teaches = class_id is not None and await uow.academics.teaches_class(
                     actor.user_id, class_id
-                ):
-                    raise PermissionDenied("You can only see students you teach.")
+                )
+                if not teaches:
+                    if not actor.permissions.allows("student_attendance:view_all"):
+                        raise PermissionDenied("You can only see students you teach.")
+                    scope = await scope_of(uow, actor)
+                    school_class = await uow.academics.get_class(class_id) if class_id else None
+                    if not scope.whole_school and (
+                        school_class is None or not scope.covers(school_class.school_level)
+                    ):
+                        raise PermissionDenied(
+                            "This student is in another section of the school.",
+                            code="other_section",
+                        )
             totals = await uow.attendance.student_summary(student_id, start, end)
         return SummaryView(
             student_id=student_id,

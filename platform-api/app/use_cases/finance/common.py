@@ -24,6 +24,7 @@ from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.identity.user import UserAccount
 from app.domain.shared.errors import NotFound, PermissionDenied, ValidationFailed
 from app.domain.shared.money import Money, default_currency
+from app.use_cases.academics.sections import ensure_student_in_scope
 from app.use_cases.identity.guardians import is_guardian_or_self
 from app.use_cases.shared.ports import UnitOfWork
 from app.use_cases.shared.principal import Principal
@@ -63,11 +64,13 @@ async def require_student(uow: UnitOfWork, tenant_id: UUID, student_id: UUID) ->
 async def ensure_can_see(
     uow: UnitOfWork, actor: Principal, student_id: UUID, *, staff_permission: str = "invoices:read"
 ) -> None:
-    """Finance staff see every student. A student sees their own account, and a parent sees
-    the accounts of the children the school has linked to them."""
-    if actor.permissions.allows(staff_permission):
-        return
+    """Finance staff see the students they serve (a bursar working per section, that section's).
+    A student sees their own account, and a parent their linked children's."""
     if actor.permissions.allows("fees:view") and await is_guardian_or_self(uow, actor, student_id):
+        return
+    if actor.permissions.allows(staff_permission):
+        # A bursar who works per section sees only that section's students.
+        await ensure_student_in_scope(uow, actor, student_id)
         return
     raise PermissionDenied("You can only see your own family's fees.")
 

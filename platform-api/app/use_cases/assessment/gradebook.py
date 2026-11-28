@@ -14,6 +14,7 @@ from datetime import datetime
 from decimal import Decimal
 from uuid import UUID
 
+from app.domain.academics.sections import SectionFeature
 from app.domain.academics.structure import SchoolClass, Term
 from app.domain.assessment.gradebook import Mark, ScoreSheet, SheetStatus, check_score
 from app.domain.assessment.scheme import Component
@@ -25,6 +26,7 @@ from app.domain.shared.errors import (
     PermissionDenied,
     ValidationFailed,
 )
+from app.use_cases.academics.sections import require_feature, scope_for, scope_of
 from app.use_cases.assessment.setup import ComponentView, scheme_for
 from app.use_cases.shared import audit
 from app.use_cases.shared.ports import Clock, SchoolTime, Scope, UnitOfWork, UnitOfWorkFactory
@@ -37,6 +39,7 @@ MAX_ENTRIES = 3_000
 _LEADER_ROLES = frozenset(
     {
         SchoolRole.HEAD_TEACHER.value,
+        SchoolRole.ASSISTANT_HEAD_TEACHER.value,
         SchoolRole.PRINCIPAL.value,
         SchoolRole.VICE_PRINCIPAL.value,
     }
@@ -113,7 +116,7 @@ class Gradebook:
         actor.require_realm(Realm.SCHOOL)
         tenant_id = actor.school_tenant_id
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
-            term, cls = await _term_and_class(uow, term_id, class_id, subject_id)
+            term, cls = await _term_and_class(uow, actor, term_id, class_id, subject_id)
             teacher = await uow.academics.subject_teacher(cls.id, subject_id)
             _may_read(actor, cls, teacher)
             sheet = await uow.assessment.find_sheet(term.id, cls.id, subject_id)
@@ -129,6 +132,7 @@ class Gradebook:
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
             term = await _term(uow, term_id)
             cls = await _class(uow, class_id)
+            await in_section(uow, actor, cls)
             if not (
                 cls.class_teacher_id == actor.user_id
                 or actor.permissions.allows(VIEW_ALL)
@@ -158,10 +162,11 @@ class Gradebook:
         actor.require(APPROVE)
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
             term = await _term(uow, term_id)
+            scope = await scope_of(uow, actor)
             pairs = []
             for sheet in await uow.assessment.sheets(term_id=term.id, status=SheetStatus.SUBMITTED):
                 cls = await uow.academics.get_class(sheet.class_id)
-                if cls is not None:
+                if cls is not None and scope.covers(cls.school_level):
                     teacher = await uow.academics.subject_teacher(cls.id, sheet.subject_id)
                     pairs.append((cls, sheet.subject_id, teacher))
             return await self._summaries(uow, term, pairs)
@@ -186,7 +191,7 @@ class Gradebook:
         now = self._clock.now()
         today = (await self._school_time.now_local(tenant_id)).date()
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
-            term, cls = await _term_and_class(uow, term_id, class_id, subject_id)
+            term, cls = await _term_and_class(uow, actor, term_id, class_id, subject_id)
             if term.starts_on > today:
                 raise InvalidStateTransition("That term hasn't started.", code="term_not_started")
             teacher = await uow.academics.subject_teacher(cls.id, subject_id)
@@ -284,7 +289,7 @@ class Gradebook:
         tenant_id = actor.school_tenant_id
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
-            term, cls = await _term_and_class(uow, term_id, class_id, subject_id)
+            term, cls = await _term_and_class(uow, actor, term_id, class_id, subject_id)
             teacher = await uow.academics.subject_teacher(cls.id, subject_id)
             _may_edit(actor, teacher)
             if student_id not in {
@@ -322,14 +327,19 @@ class Gradebook:
         tenant_id = actor.school_tenant_id
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
-            sheet, term, cls, teacher = await self._load(uow, sheet_id)
+            sheet, term, cls, teacher = await self._load(uow, actor, sheet_id)
             _may_edit(actor, teacher)
             view = await self._view(uow, actor, term, cls, sheet.subject_id, teacher, sheet)
             sheet.submit(by=actor.user_id, missing=view.missing, now=now)
             await uow.assessment.save_sheet(sheet)
-            approvers = await uow.users.school_users_with_access(
-                tenant_id, roles=_LEADER_ROLES, capability=APPROVE
-            )
+            approvers = [
+                person
+                for person in await uow.users.school_users_with_access(
+                    tenant_id, roles=_LEADER_ROLES, capability=APPROVE
+                )
+                # Only the leaders of this class's section are told.
+                if (await scope_for(uow, person.id, person.roles)).covers(cls.school_level)
+            ]
             await uow.communication.notify(
                 [
                     Notification.new(
@@ -362,7 +372,7 @@ class Gradebook:
         actor.require_realm(Realm.SCHOOL)
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
-            sheet, term, cls, teacher = await self._load(uow, sheet_id)
+            sheet, term, cls, teacher = await self._load(uow, actor, sheet_id)
             sheet.recall(by=actor.user_id, now=now)
             await uow.assessment.save_sheet(sheet)
             uow.audit(
@@ -382,7 +392,8 @@ class Gradebook:
         actor.require(APPROVE)
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
-            sheet, term, cls, teacher = await self._load(uow, sheet_id)
+            sheet, term, cls, teacher = await self._load(uow, actor, sheet_id)
+            (await scope_of(uow, actor)).require(cls.school_level)
             submitter = sheet.submitted_by
             sheet.approve(by=actor.user_id, now=now)
             await uow.assessment.save_sheet(sheet)
@@ -404,7 +415,8 @@ class Gradebook:
         actor.require(APPROVE)
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
-            sheet, term, cls, teacher = await self._load(uow, sheet_id)
+            sheet, term, cls, teacher = await self._load(uow, actor, sheet_id)
+            (await scope_of(uow, actor)).require(cls.school_level)
             submitter = sheet.submitted_by
             sheet.send_back(note=note, now=now)
             await uow.assessment.save_sheet(sheet)
@@ -427,7 +439,8 @@ class Gradebook:
         actor.require(APPROVE)
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
-            sheet, term, cls, teacher = await self._load(uow, sheet_id)
+            sheet, term, cls, teacher = await self._load(uow, actor, sheet_id)
+            (await scope_of(uow, actor)).require(cls.school_level)
             submitter = sheet.submitted_by
             release = await uow.assessment.get_release(term.id, cls.id)
             if release is not None and release.visible:
@@ -470,13 +483,15 @@ class Gradebook:
         return sheet
 
     async def _load(
-        self, uow: UnitOfWork, sheet_id: UUID
+        self, uow: UnitOfWork, actor: Principal, sheet_id: UUID
     ) -> tuple[ScoreSheet, Term, SchoolClass, UUID | None]:
         sheet = await uow.assessment.get_sheet(sheet_id, for_update=True)
         if sheet is None:
             raise NotFound("Score sheet not found.")
         term = await _term(uow, sheet.term_id)
         cls = await _class(uow, sheet.class_id)
+        await in_section(uow, actor, cls)
+        await require_feature(uow, cls.school_level, SectionFeature.GRADEBOOK)
         teacher = await uow.academics.subject_teacher(cls.id, sheet.subject_id)
         return sheet, term, cls, teacher
 
@@ -668,11 +683,24 @@ async def _class(uow: UnitOfWork, class_id: UUID) -> SchoolClass:
     return cls
 
 
+async def in_section(uow: UnitOfWork, actor: Principal, cls: SchoolClass) -> None:
+    """Leaders act only on their own section's classes; teachers on the classes they teach."""
+    if (await scope_of(uow, actor)).covers(cls.school_level):
+        return
+    if cls.class_teacher_id == actor.user_id or await uow.academics.teaches_class(
+        actor.user_id, cls.id
+    ):
+        return
+    raise PermissionDenied("This class is in another section of the school.", code="other_section")
+
+
 async def _term_and_class(
-    uow: UnitOfWork, term_id: UUID, class_id: UUID, subject_id: UUID
+    uow: UnitOfWork, actor: Principal, term_id: UUID, class_id: UUID, subject_id: UUID
 ) -> tuple[Term, SchoolClass]:
     term = await _term(uow, term_id)
     cls = await _class(uow, class_id)
+    await in_section(uow, actor, cls)
+    await require_feature(uow, cls.school_level, SectionFeature.GRADEBOOK)
     if subject_id not in cls.subject_ids:
         raise NotFound("This class doesn't take that subject.")
     return term, cls

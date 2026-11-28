@@ -16,6 +16,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from uuid import UUID
 
+from app.domain.academics.sections import SectionFeature
 from app.domain.communication.inbox import Notification, NotificationKind
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.operations.hostel import (
@@ -33,6 +34,11 @@ from app.domain.shared.errors import (
     ValidationFailed,
 )
 from app.domain.shared.value_objects import Page
+from app.use_cases.academics.sections import (
+    ensure_student_in_scope,
+    serve_student,
+    visible_students,
+)
 from app.use_cases.identity.guardians import is_guardian_or_self
 from app.use_cases.shared import audit
 from app.use_cases.shared.pagination import clamp_limit
@@ -261,6 +267,7 @@ class Hostels:
         label = bed_label(bed)
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             await _student(uow, tenant_id, student_id)
+            await serve_student(uow, actor, student_id, SectionFeature.BOARDING)
             room = await _load_room(uow, room_id, for_update=True)  # serialises bed checks
             hostel = await _load_hostel(uow, room.hostel_id)
             if not hostel.active:
@@ -307,6 +314,7 @@ class Hostels:
         actor.require_realm(Realm.SCHOOL)
         actor.require(MANAGE)
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
+            await ensure_student_in_scope(uow, actor, student_id)
             current = await uow.hostel.allocation(student_id)
             if current is None:
                 raise NotFound("This student isn't a boarder.")
@@ -332,6 +340,8 @@ class Hostels:
             hostel = await _load_hostel(uow, hostel_id)
             rooms = {r.id: r for r in await uow.hostel.rooms(hostel.id)}
             found = await uow.hostel.allocations(hostel.id)
+            shown = await visible_students(uow, actor, {a.student_id for a in found})
+            found = [a for a in found if a.student_id in shown]
             names = await uow.users.school_names({a.student_id for a in found})
             away = await uow.hostel.students_out()
         rows = [
@@ -355,6 +365,7 @@ class Hostels:
             await _student(uow, tenant_id, student_id)
             if not await is_guardian_or_self(uow, actor, student_id):
                 actor.require(MANAGE)
+                await ensure_student_in_scope(uow, actor, student_id)
             return await self._boarder(uow, tenant_id, student_id)
 
     # ---- exeats -----------------------------------------------------------------------------
@@ -429,6 +440,7 @@ class Hostels:
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
             exeat = await _load_exeat(uow, exeat_id)
+            await ensure_student_in_scope(uow, actor, exeat.student_id)
             if approve:
                 exeat.approve(by=actor.user_id, note=note, now=now)
             else:
@@ -463,6 +475,7 @@ class Hostels:
             exeat = await _load_exeat(uow, exeat_id)
             if exeat.requested_by != actor.user_id:
                 actor.require(MANAGE)
+                await ensure_student_in_scope(uow, actor, exeat.student_id)
             exeat.cancel(now=now)
             await uow.hostel.save_exeat(exeat)
             uow.audit(
@@ -480,6 +493,7 @@ class Hostels:
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
             exeat = await _load_exeat(uow, exeat_id)
+            await ensure_student_in_scope(uow, actor, exeat.student_id)
             exeat.sign_out(now=now)
             await uow.hostel.save_exeat(exeat)
             first = _first(await _student(uow, actor.school_tenant_id, exeat.student_id))
@@ -505,6 +519,7 @@ class Hostels:
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
             exeat = await _load_exeat(uow, exeat_id)
+            await ensure_student_in_scope(uow, actor, exeat.student_id)
             exeat.sign_in(now=now)
             await uow.hostel.save_exeat(exeat)
             first = _first(await _student(uow, actor.school_tenant_id, exeat.student_id))

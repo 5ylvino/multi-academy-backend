@@ -13,7 +13,7 @@ import pytest
 
 from app.infrastructure.container import Container
 from tests.integration.conftest import Mailbox
-from tests.integration.helpers import bearer, register_and_verify
+from tests.integration.helpers import SECTION_ROLES, bearer, register_and_verify, section_id
 
 pytestmark = pytest.mark.integration
 
@@ -40,12 +40,15 @@ async def _member(
     email: str,
     role: str,
     name: str,
+    level: str | None = None,
 ) -> dict[str, Any]:
-    r = await client.post(
-        "/api/v1/users",
-        headers=bearer(director),
-        json={"email": email, "full_name": name, "roles": [role]},
-    )
+    """Heads and teachers go to a section: secondary for a principal or vice principal,
+    otherwise the section holding ``level`` (primary by default)."""
+    body: dict[str, Any] = {"email": email, "full_name": name, "roles": [role]}
+    if role in SECTION_ROLES:
+        want = "secondary" if role in {"principal", "vice_principal"} else (level or "primary")
+        body["section_ids"] = [await section_id(client, director, want)]
+    r = await client.post("/api/v1/users", headers=bearer(director), json=body)
     assert r.status_code == 201, r.text
     await container.outbox.run_once()
     accepted = await client.post(

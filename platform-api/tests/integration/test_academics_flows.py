@@ -9,7 +9,7 @@ import pytest
 
 from app.infrastructure.container import Container
 from tests.integration.conftest import Mailbox
-from tests.integration.helpers import bearer, register_and_verify
+from tests.integration.helpers import bearer, invite_body, register_and_verify
 
 pytestmark = pytest.mark.integration
 
@@ -26,11 +26,14 @@ async def _member(
     slug: str,
     email: str,
     role: str,
+    level: str | None = None,
 ) -> dict[str, Any]:
     r = await client.post(
         "/api/v1/users",
         headers=bearer(director),
-        json={"email": email, "full_name": "Ada Obi", "roles": [role]},
+        json=await invite_body(
+            client, director, email=email, name="Ada Obi", role=role, level=level
+        ),
     )
     assert r.status_code == 201, r.text
     await container.outbox.run_once()
@@ -123,7 +126,14 @@ async def test_classes_subjects_and_enrolment(
 
     # Enrolling before a current term exists is refused.
     teacher = await _member(
-        client, container, mailbox, d, slug="rose", email="t@rose.ng", role="class_teacher"
+        client,
+        container,
+        mailbox,
+        d,
+        slug="rose",
+        email="t@rose.ng",
+        role="class_teacher",
+        level="secondary",
     )
     s1 = await _member(
         client, container, mailbox, d, slug="rose", email="s1@rose.ng", role="student"
@@ -151,6 +161,21 @@ async def test_classes_subjects_and_enrolment(
         },
     )
     assert jss1.status_code == 201, jss1.text
+    # A primary teacher can't be given a secondary class.
+    primary_teacher = await _member(
+        client, container, mailbox, d, slug="rose", email="pt@rose.ng", role="class_teacher"
+    )
+    wrong = await client.post(
+        f"{API}/classes",
+        headers=h,
+        json={
+            "name": "JSS 1B",
+            "code": "jss 1b",
+            "school_level": "secondary",
+            "class_teacher_id": primary_teacher["user_id"],
+        },
+    )
+    assert wrong.json()["code"] == "teacher_other_section"
     klass = jss1.json()
     assert klass["code"] == "JSS-1A"
 

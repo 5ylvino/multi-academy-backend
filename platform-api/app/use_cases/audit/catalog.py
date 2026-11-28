@@ -75,6 +75,10 @@ ACTIONS: MappingProxyType[str, ActionInfo] = MappingProxyType(
         "academics.subject_unlinked": ActionInfo("Removed a subject from a class", _A),
         "academics.student_enrolled": ActionInfo("Enrolled a student", _A),
         "academics.student_withdrawn": ActionInfo("Withdrew a student from a class", _A),
+        "academics.sections_arranged": ActionInfo("Rearranged the school's sections", _A),
+        "academics.staff_sections_set": ActionInfo("Set the sections a staff member works in", _A),
+        "academics.staff_coverage_set": ActionInfo("Chose which staff roles work per section", _A),
+        "academics.section_features_set": ActionInfo("Switched a section's features", _A),
         # Assessment
         "assessment.scheme_changed": ActionInfo("Changed how subjects are scored", _A),
         "assessment.scale_changed": ActionInfo("Changed the grading scale", _A),

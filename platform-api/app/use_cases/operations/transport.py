@@ -14,6 +14,7 @@ from dataclasses import dataclass
 from datetime import date, datetime, time, timedelta
 from uuid import UUID
 
+from app.domain.academics.sections import SectionFeature
 from app.domain.communication.inbox import Notification, NotificationKind
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.operations.transport import (
@@ -31,6 +32,7 @@ from app.domain.shared.errors import (
     ValidationFailed,
 )
 from app.domain.shared.value_objects import Page
+from app.use_cases.academics.sections import ensure_student_in_scope, serve_student
 from app.use_cases.identity.guardians import is_guardian_or_self
 from app.use_cases.shared import audit
 from app.use_cases.shared.pagination import clamp_limit
@@ -335,6 +337,7 @@ class Transport:
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             await _student(uow, tenant_id, student_id)
+            await serve_student(uow, actor, student_id, SectionFeature.TRANSPORT)
             route = await _load_route(uow, route_id, for_update=True)  # serialises seat checks
             if not route.active:
                 raise InvalidStateTransition("That route is not running.", code="route_inactive")
@@ -380,6 +383,7 @@ class Transport:
         actor.require_realm(Realm.SCHOOL)
         actor.require(MANAGE)
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id)) as uow:
+            await ensure_student_in_scope(uow, actor, student_id)
             current = await uow.transport.assignment(student_id)
             if current is None:
                 raise NotFound("This student isn't on a route.")
@@ -406,6 +410,7 @@ class Transport:
             if not await is_guardian_or_self(uow, actor, student_id):
                 _staff_only(actor)
                 actor.require(READ)
+                await ensure_student_in_scope(uow, actor, student_id)
             return await self._student_view(uow, tenant_id, student_id)
 
     async def manifest(self, actor: Principal, route_id: UUID, *, direction: str) -> Manifest:

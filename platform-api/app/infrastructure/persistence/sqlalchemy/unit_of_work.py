@@ -46,6 +46,7 @@ from app.infrastructure.persistence.repositories.platform import (
 )
 from app.infrastructure.persistence.repositories.safeguarding import SqlSafeguardingRepository
 from app.infrastructure.persistence.repositories.scope_state import ScopeState
+from app.infrastructure.persistence.repositories.sections import SqlSectionRepository
 from app.infrastructure.persistence.repositories.spending import SqlSpendingRepository
 from app.infrastructure.persistence.repositories.subscriptions import SqlSubscriptionRepository
 from app.infrastructure.persistence.repositories.tenancy import (
@@ -99,6 +100,7 @@ class SqlAlchemyUnitOfWork:
         self.mfa = SqlMfaRepository(s)
         self.attendance = SqlAttendanceRepository(s, self._scope)
         self.academics = SqlAcademicsRepository(s, self._scope)
+        self.sections = SqlSectionRepository(s, self._scope)
         self.finance = SqlFinanceRepository(s, self._scope)
         self.audit_log = SqlAuditLogRepository(s)
         self.online_payments = SqlOnlinePaymentRepository(s, self._scope)

@@ -17,6 +17,7 @@ from app.domain.finance.catalog import FeeItem
 from app.domain.identity.roles import Realm
 from app.domain.shared.errors import NotFound, PermissionDenied, ValidationFailed
 from app.domain.shared.value_objects import Page
+from app.use_cases.academics.sections import ensure_student_in_scope, scope_of, visible_students
 from app.use_cases.finance.common import (
     MoneyView,
     due_date,
@@ -174,6 +175,12 @@ class Billing:
                 if unknown:
                     raise NotFound("Some classes were not found.", details={"class_ids": unknown})
                 classes = {c: classes[c] for c in class_ids}
+            scope = await scope_of(uow, actor)
+            if class_ids:
+                for c in classes.values():
+                    scope.require(c.school_level)
+            else:
+                classes = {k: c for k, c in classes.items() if scope.covers(c.school_level)}
             items = [
                 i
                 for i in await uow.finance.list_fee_items(include_inactive=False)
@@ -286,6 +293,7 @@ class Billing:
         now = self._clock.now()
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             await require_student(uow, tenant_id, student_id)
+            await ensure_student_in_scope(uow, actor, student_id)
             settings = await load_settings(uow, tenant_id)
             items: list[FeeItem] = []
             for item_id in fee_item_ids:
@@ -366,10 +374,13 @@ class Billing:
         except ValueError as exc:
             raise ValidationFailed("Unknown status.", details={"field": "status"}) from exc
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
-            if not actor.permissions.allows("invoices:read"):
+            staff = actor.permissions.allows("invoices:read")
+            if not staff:
                 # Students list their own invoices; parents pick one of their children.
                 student_id = student_id or actor.user_id
                 await ensure_can_see(uow, actor, student_id)
+            elif student_id is not None:
+                await ensure_student_in_scope(uow, actor, student_id)
             page = await uow.finance.list_invoices(
                 student_id=student_id,
                 term_id=term_id,
@@ -377,7 +388,12 @@ class Billing:
                 cursor=cursor,
                 limit=max(1, min(limit, 100)),
             )
-        return Page(items=[InvoiceView.of(i) for i in page.items], next_cursor=page.next_cursor)
+            ids = {i.student_id for i in page.items}
+            shown = await visible_students(uow, actor, ids) if staff else ids
+        return Page(
+            items=[InvoiceView.of(i) for i in page.items if i.student_id in shown],
+            next_cursor=page.next_cursor,
+        )
 
     async def void_invoice(self, actor: Principal, invoice_id: UUID, *, reason: str) -> InvoiceView:
         """Cancel an invoice. Anything paid on it goes back to the student as credit, which
@@ -390,6 +406,7 @@ class Billing:
             found = await uow.finance.get_invoice(invoice_id)
             if found is None:
                 raise NotFound("Invoice not found.")
+            await ensure_student_in_scope(uow, actor, found.student_id)
             await uow.finance.lock_student(found.student_id)
             released = await release(
                 uow,

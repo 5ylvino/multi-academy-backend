@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from datetime import timedelta
 from uuid import UUID
 
+from app.domain.academics.sections import Section, check_arrangement, default_arrangement
+from app.domain.academics.structure import SchoolLevelCode
 from app.domain.identity.password_policy import validate_password
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.identity.user import UserAccount, UserStatus
@@ -18,6 +20,7 @@ from app.domain.shared.value_objects import EmailAddress, Slug
 from app.domain.tenancy.events import VerificationCodeIssued
 from app.domain.tenancy.tenant import SchoolLevel, Tenant
 from app.domain.tenancy.verification import EmailVerification
+from app.use_cases.academics.sections import check_service_roles
 from app.use_cases.shared import audit
 from app.use_cases.shared.ports import (
     Clock,
@@ -43,6 +46,12 @@ class RegisterSchoolCommand:
     admin_password: str
     client_ip: str | None
     timezone: str | None = None
+    #: Only matters when the school has both nursery and primary.
+    nursery_with_primary: bool = True
+    #: An explicit arrangement: (name or None, levels) per section. Overrides the default.
+    sections: list[tuple[str | None, list[str]]] | None = None
+    #: Service roles (bursar, nurse, guard, driver, office staff) the school runs per section.
+    per_section_roles: list[str] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,6 +93,8 @@ class RegisterSchool:
             raise ValidationFailed(
                 "Unknown school level.", details={"field": "school_levels"}
             ) from exc
+        arrangement = _arrangement(cmd, levels)
+        per_section = check_service_roles(cmd.per_section_roles or [])
         if not cmd.admin_full_name.strip():
             raise ValidationFailed(
                 "Enter the administrator's name.", details={"field": "admin_full_name"}
@@ -123,6 +134,12 @@ class RegisterSchool:
             )
             await uow.users.add(admin)
             uow.track(admin)
+            sections = [
+                Section.create(tenant_id=tenant.id, levels=group, name=name, now=now)
+                for name, group in arrangement
+            ]
+            await uow.sections.save_arrangement(sections, removed=[])
+            await uow.sections.set_per_section_roles(per_section)
 
             verification = EmailVerification.issue(
                 tenant_id=tenant.id,
@@ -158,3 +175,20 @@ class RegisterSchool:
             status=tenant.status.value,
             verification_expires_in=int(VERIFICATION_TTL.total_seconds()),
         )
+
+
+def _arrangement(
+    cmd: RegisterSchoolCommand, levels: frozenset[SchoolLevel]
+) -> list[tuple[str | None, frozenset[SchoolLevelCode]]]:
+    offered = frozenset(SchoolLevelCode(lvl.value) for lvl in levels)
+    if cmd.sections is None:
+        return [
+            (None, group)
+            for group in default_arrangement(offered, nursery_with_primary=cmd.nursery_with_primary)
+        ]
+    try:
+        plan = [(name, frozenset(SchoolLevelCode(v) for v in lv)) for name, lv in cmd.sections]
+    except ValueError as exc:
+        raise ValidationFailed("Unknown school level.", details={"field": "sections"}) from exc
+    check_arrangement([group for _, group in plan], offered)
+    return plan

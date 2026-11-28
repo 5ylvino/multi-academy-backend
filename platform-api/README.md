@@ -95,6 +95,11 @@ TEST_REDIS_URL=redis://localhost:6379/15 uv run pytest --cov
 | POST | `/api/v1/users` | `users:create` (+ `roles:assign` for leadership roles) |
 | GET | `/api/v1/users?role=&q=&cursor=&limit=` | `users:read` |
 | POST | `/api/v1/schools/{slug}/invites/accept` | public: invite token + new password |
+| GET | `/api/v1/academics/sections`, `/sections/mine` | school users: the sections you can see, and your own |
+| PUT | `/api/v1/academics/sections` | `school_levels:manage`: re-arrange which levels form each section |
+| GET/PUT | `/api/v1/academics/sections/staff-coverage` | school users / `school_levels:manage`: which service roles work per section |
+| PUT | `/api/v1/academics/sections/{id}/features` | `school_levels:manage`: features a section uses |
+| PUT | `/api/v1/users/{id}/sections` | `staff:update`: the sections a staff member works in |
 | GET/POST | `/api/v1/academics/sessions` | `dashboards:view` / `academic_sessions:manage` |
 | POST | `/api/v1/academics/sessions/{id}/terms`, `/terms/{id}/current` | `academic_terms:manage` |
 | GET/POST/PATCH | `/api/v1/academics/classes`, `/classes/{id}` | `classes:read` / `:create` / `:update` |
@@ -312,6 +317,27 @@ Errors are RFC 9457 problem documents with a stable `code` and the `request_id`.
   their child's history; leaders see the school's last 90 days.
 - The visitor book signs visitors in (purpose, the member of staff they're seeing, badge,
   vehicle) and out. `GET /gate/visits?on_site=true` is the fire register.
+
+## School sections
+
+- A school offers nursery, primary and secondary in any mix. Each level belongs to exactly one
+  section (the database enforces it). At sign-up the owner picks the sections: by default
+  nursery joins primary under the headmaster and secondary stands alone under the principal;
+  `nursery_with_primary: false` keeps nursery apart, and `sections` sets any grouping by hand.
+- Data never mixes. Classes, subjects and students take their section from their level, so
+  re-arranging sections moves no data. Heads, teachers and per-section staff see and act only
+  inside their own sections; the director, school admin and IT admin see everything. Anything
+  outside your section answers `other_section`.
+- The owner decides, at sign-up (`per_section_roles`) or later, whether the bursar, nurse, gate,
+  driver and administrative staff serve the whole school or work per section.
+- Principals and vice principals go only in sections with secondary; head teachers and their
+  assistants only in sections with nursery or primary (`role_section_mismatch`). A school with
+  one section assigns staff to it automatically; otherwise invites need `section_ids`.
+- Each section turns its own features on or off: attendance, gradebook, report cards, clinic,
+  gate, transport and boarding. Boarding starts on only where there is secondary. A feature
+  that is off answers `section_feature_off`.
+- `/api/v1/bootstrap` returns the sections, `whole_school` and `my_section_ids` so the app shows
+  each person their own part of the school.
 
 ## Assessment and the gradebook
 

@@ -12,6 +12,7 @@ from app.domain.finance.catalog import BankAccount, FeeItem, FinanceSettings
 from app.domain.identity.roles import Realm
 from app.domain.shared.errors import NotFound, PermissionDenied, ValidationFailed
 from app.domain.shared.money import Money
+from app.use_cases.academics.sections import ensure_student_in_scope
 from app.use_cases.finance.common import (
     MoneyView,
     check_currency,
@@ -360,6 +361,7 @@ class FinanceCatalog:
         tenant_id = actor.school_tenant_id
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             await require_student(uow, tenant_id, cmd.student_id)
+            await ensure_student_in_scope(uow, actor, cmd.student_id)
             session_id = cmd.session_id
             if session_id is None:
                 term = await uow.academics.current_term()

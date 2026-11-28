@@ -29,8 +29,8 @@ async def _gradebook_school(
     d = sc["director"]
     for key, role, name in (
         ("maths", "subject_teacher", "Sola Subject"),
-        ("principal", "principal", "Pat Principal"),
-        ("vice", "vice_principal", "Vic Vice"),
+        ("principal", "head_teacher", "Hana Head"),
+        ("vice", "assistant_head_teacher", "Ada Assistant"),
     ):
         sc[key] = await _member(
             client,

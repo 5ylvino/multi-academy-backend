@@ -49,6 +49,11 @@ async def register_school(
             admin_email=body.admin_email,
             admin_password=body.admin_password,
             client_ip=client.ip_address,
+            nursery_with_primary=body.nursery_with_primary,
+            sections=[(p.name, list(p.levels)) for p in body.sections]
+            if body.sections is not None
+            else None,
+            per_section_roles=list(body.per_section_roles),
         )
     )
     return RegisterSchoolResponse.model_validate(result)

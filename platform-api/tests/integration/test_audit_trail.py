@@ -13,7 +13,7 @@ import pytest
 
 from app.infrastructure.container import Container
 from tests.integration.conftest import Mailbox
-from tests.integration.helpers import bearer, platform_session, register_and_verify
+from tests.integration.helpers import bearer, platform_session, register_and_verify, section_id
 
 pytestmark = pytest.mark.integration
 
@@ -162,7 +162,12 @@ async def test_only_leaders_can_read_the_trail(
     invited = await client.post(
         "/api/v1/users",
         headers=bearer(director),
-        json={"email": "t@guarded.ng", "full_name": "Ada Obi", "roles": ["subject_teacher"]},
+        json={
+            "email": "t@guarded.ng",
+            "full_name": "Ada Obi",
+            "roles": ["subject_teacher"],
+            "section_ids": [await section_id(client, director, "primary")],
+        },
     )
     assert invited.status_code == 201, invited.text
     await container.outbox.run_once()

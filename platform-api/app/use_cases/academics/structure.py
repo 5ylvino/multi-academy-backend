@@ -20,6 +20,7 @@ from app.domain.academics.structure import (
 )
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.shared.errors import Conflict, NotFound, ValidationFailed
+from app.use_cases.academics.sections import ensure_works_in, scope_of
 from app.use_cases.shared import audit
 from app.use_cases.shared.ports import AuditEntry, Clock, Scope, UnitOfWork, UnitOfWorkFactory
 from app.use_cases.shared.principal import Principal
@@ -282,7 +283,9 @@ class ClassesAndSubjects:
     def __init__(self, *, uow_factory: UnitOfWorkFactory) -> None:
         self._uow_factory = uow_factory
 
-    async def _ensure_teacher(self, uow: UnitOfWork, teacher_id: UUID | None) -> None:
+    async def _ensure_teacher(
+        self, uow: UnitOfWork, teacher_id: UUID | None, level: SchoolLevelCode, field: str
+    ) -> None:
         if teacher_id is None:
             return
         teacher = await uow.users.get(teacher_id)
@@ -292,9 +295,8 @@ class ClassesAndSubjects:
             SchoolRole.HEAD_TEACHER.value,
         }
         if teacher is None or not (teacher.roles & teaching):
-            raise ValidationFailed(
-                "Pick a teacher from your school.", details={"field": "class_teacher_id"}
-            )
+            raise ValidationFailed("Pick a teacher from your school.", details={"field": field})
+        await ensure_works_in(uow, teacher_id, level.value, field)
 
     async def create_class(self, actor: Principal, cmd: CreateClassCommand) -> ClassView:
         actor.require_realm(Realm.SCHOOL)
@@ -311,9 +313,10 @@ class ClassesAndSubjects:
         )
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             await _ensure_level_offered(uow, tenant_id, level)
+            (await scope_of(uow, actor)).require(level)
             if await uow.academics.class_code_exists(school_class.code):
                 raise Conflict("A class with this code already exists.", details={"field": "code"})
-            await self._ensure_teacher(uow, cmd.class_teacher_id)
+            await self._ensure_teacher(uow, cmd.class_teacher_id, level, "class_teacher_id")
             await uow.academics.add_class(school_class)
             uow.audit(
                 audit.by(
@@ -344,6 +347,7 @@ class ClassesAndSubjects:
             school_class = await uow.academics.get_class(class_id)
             if school_class is None:
                 raise NotFound("Class not found.")
+            (await scope_of(uow, actor)).require(school_class.school_level)
             before = _class_fields(school_class)
             if name is not None:
                 school_class.rename(name)
@@ -352,7 +356,9 @@ class ClassesAndSubjects:
             if clear_teacher:
                 school_class.class_teacher_id = None
             elif class_teacher_id is not None:
-                await self._ensure_teacher(uow, class_teacher_id)
+                await self._ensure_teacher(
+                    uow, class_teacher_id, school_class.school_level, "class_teacher_id"
+                )
                 school_class.class_teacher_id = class_teacher_id
             if active is not None:
                 school_class.active = active
@@ -382,8 +388,11 @@ class ClassesAndSubjects:
             classes = await uow.academics.list_classes(
                 level=level, include_inactive=include_inactive
             )
+            scope = await scope_of(uow, actor)
         return [
-            ClassView.of(c) for c in sorted(classes, key=lambda c: (c.school_level.value, c.code))
+            ClassView.of(c)
+            for c in sorted(classes, key=lambda c: (c.school_level.value, c.code))
+            if scope.covers(c.school_level)
         ]
 
     async def create_subject(
@@ -398,6 +407,7 @@ class ClassesAndSubjects:
         )
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             await _ensure_level_offered(uow, tenant_id, level)
+            (await scope_of(uow, actor)).require(level)
             if await uow.academics.subject_code_exists(subject.code, level.value):
                 raise Conflict(
                     "A subject with this code already exists for this level.",
@@ -425,9 +435,11 @@ class ClassesAndSubjects:
             _level(level)
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
             subjects = await uow.academics.list_subjects(level=level)
+            scope = await scope_of(uow, actor)
         return [
             SubjectView.of(s)
             for s in sorted(subjects, key=lambda s: (s.school_level.value, s.code))
+            if scope.covers(s.school_level)
         ]
 
     async def link_subject(
@@ -451,8 +463,9 @@ class ClassesAndSubjects:
                     "The subject and class are for different levels.",
                     details={"field": "subject_id"},
                 )
+            (await scope_of(uow, actor)).require(school_class.school_level)
             if linked:
-                await self._ensure_teacher(uow, teacher_id)
+                await self._ensure_teacher(uow, teacher_id, school_class.school_level, "teacher_id")
                 await uow.academics.link_subject(class_id, subject_id, teacher_id)
                 school_class.subject_ids.add(subject_id)
             else:
@@ -498,6 +511,8 @@ class Enrolments:
             school_class = await uow.academics.get_class(class_id, for_update=True)
             if school_class is None or not school_class.active:
                 raise NotFound("Class not found.")
+            scope = await scope_of(uow, actor)
+            scope.require(school_class.school_level)
             student = await uow.users.get(student_id)
             if student is None or SchoolRole.STUDENT.value not in student.roles:
                 raise ValidationFailed(
@@ -507,6 +522,10 @@ class Enrolments:
             if existing is not None:
                 if existing.class_id == class_id:
                     return EnrolmentView.of(existing)
+                current = await uow.academics.get_class(existing.class_id)
+                if current is not None:
+                    # Moving a student out of another section is for whoever covers both.
+                    scope.require(current.school_level)
                 existing.status = EnrolmentStatus.WITHDRAWN
                 await uow.academics.save_enrolment(existing)
                 uow.audit(
@@ -550,6 +569,10 @@ class Enrolments:
         actor.require_realm(Realm.SCHOOL)
         actor.require("students:read")
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
+            school_class = await uow.academics.get_class(class_id)
+            if school_class is None:
+                raise NotFound("Class not found.")
+            (await scope_of(uow, actor)).require(school_class.school_level)
             term = await uow.academics.current_term()
             if term is None:
                 return []

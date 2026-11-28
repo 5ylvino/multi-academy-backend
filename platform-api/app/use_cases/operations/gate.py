@@ -13,11 +13,17 @@ from dataclasses import dataclass
 from datetime import date, datetime, timedelta
 from uuid import UUID
 
+from app.domain.academics.sections import SectionFeature
 from app.domain.communication.inbox import Notification, NotificationKind
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.operations.gate import Collector, Release, ReleaseStatus, Visit
 from app.domain.shared.errors import NotFound, PermissionDenied, ValidationFailed
 from app.domain.shared.value_objects import Page
+from app.use_cases.academics.sections import (
+    ensure_student_in_scope,
+    serve_student,
+    visible_students,
+)
 from app.use_cases.shared import audit
 from app.use_cases.shared.pagination import clamp_limit
 from app.use_cases.shared.ports import Clock, SchoolTime, Scope, UnitOfWork, UnitOfWorkFactory
@@ -214,6 +220,7 @@ class Gate:
         today = (await self._school_time.now_local(tenant_id)).date()
         async with self._uow_factory(Scope.tenant(tenant_id), read_only=True) as uow:
             name = await _student(uow, tenant_id, student_id)
+            await serve_student(uow, actor, student_id, SectionFeature.GATE)
             links = await uow.guardians.guardians_of(student_id)
             names = await uow.users.school_names({g.parent_id for g in links})
             collectors = await uow.gate.collectors_of(student_id, include_inactive=False)
@@ -239,6 +246,7 @@ class Gate:
         today = (await self._school_time.now_local(tenant_id)).date()
         async with self._uow_factory(Scope.tenant(tenant_id)) as uow:
             name = await _student(uow, tenant_id, cmd.student_id)
+            await serve_student(uow, actor, cmd.student_id, SectionFeature.GATE)
             guardians = {g.parent_id for g in await uow.guardians.guardians_of(cmd.student_id)}
             if cmd.guardian_id is not None and cmd.guardian_id not in guardians:
                 raise ValidationFailed(
@@ -325,6 +333,8 @@ class Gate:
             )
             if not family:
                 actor.require("gate:read")
+                if student_id is not None:
+                    await ensure_student_in_scope(uow, actor, student_id)
             page = await uow.gate.releases(
                 student_id=student_id,
                 since=self._clock.now() - timedelta(days=90),
@@ -332,8 +342,17 @@ class Gate:
                 limit=clamp_limit(limit),
             )
             names = await uow.users.school_names({r.student_id for r in page.items})
+            shown = (
+                {r.student_id for r in page.items}
+                if family
+                else await visible_students(uow, actor, {r.student_id for r in page.items})
+            )
         return Page(
-            items=[_release_view(r, names.get(r.student_id, "")) for r in page.items],
+            items=[
+                _release_view(r, names.get(r.student_id, ""))
+                for r in page.items
+                if r.student_id in shown
+            ],
             next_cursor=page.next_cursor,
         )
 
@@ -452,6 +471,7 @@ class Gate:
             return
         if not actor.permissions.allows("students:update"):
             raise PermissionDenied("Only the student's guardians or the school office can do this.")
+        await ensure_student_in_scope(uow, actor, student_id)
 
 
 async def _student(uow: UnitOfWork, tenant_id: UUID, student_id: UUID) -> str:

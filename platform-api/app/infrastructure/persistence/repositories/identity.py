@@ -6,19 +6,25 @@ import base64
 from datetime import UTC, datetime
 from uuid import UUID
 
+from sqlalchemy import ColumnElement, and_, exists, not_, or_, select, update
 from sqlalchemy import delete as sa_delete
-from sqlalchemy import or_, select, update
 from sqlalchemy.dialects.postgresql import insert as pg_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.domain.identity.guardians import GuardianLink, Relationship
 from app.domain.identity.invite import UserInvite
 from app.domain.identity.mfa import TotpFactor
+from app.domain.identity.repositories import SectionFilter
 from app.domain.identity.roles import Realm
 from app.domain.identity.session import RefreshSession
 from app.domain.identity.user import UserAccount, UserStatus
 from app.domain.shared.errors import Conflict, ValidationFailed
 from app.domain.shared.value_objects import EmailAddress, Page
+from app.infrastructure.persistence.models.academics import (
+    EnrolmentRow,
+    SchoolClassRow,
+    SectionStaffRow,
+)
 from app.infrastructure.persistence.models.identity import (
     AuthSessionRow,
     GuardianLinkRow,
@@ -223,6 +229,7 @@ class SqlUserRepository:
         search: str | None,
         cursor: str | None,
         limit: int,
+        within: SectionFilter | None = None,
     ) -> Page[UserAccount]:
         stmt = (
             select(SchoolUserRow)
@@ -230,6 +237,8 @@ class SqlUserRepository:
             .order_by(SchoolUserRow.id.desc())
             .limit(limit + 1)
         )
+        if within is not None:
+            stmt = stmt.where(_within(tenant_id, within))
         if role:
             stmt = stmt.where(SchoolUserRow.roles.contains([role]))
         if search:
@@ -252,6 +261,51 @@ class SqlUserRepository:
             else None
         )
         return Page(items=[_school_to_domain(r) for r in rows], next_cursor=next_cursor)
+
+
+def _within(tenant_id: UUID, f: SectionFilter) -> ColumnElement[bool]:
+    u = SchoolUserRow
+    in_section = exists().where(
+        SectionStaffRow.tenant_id == tenant_id,
+        SectionStaffRow.user_id == u.id,
+        SectionStaffRow.section_id.in_(f.section_ids or [UUID(int=0)]),
+    )
+    in_any_section = exists().where(
+        SectionStaffRow.tenant_id == tenant_id, SectionStaffRow.user_id == u.id
+    )
+    family = ["student", "parent"]
+    whole_school_staff = and_(
+        not_(u.roles.overlap(list(f.section_roles) + family)),
+        not_(in_any_section),
+    )
+    if f.session_id is None or not f.levels:
+        return or_(in_section, whole_school_staff)
+    enrolled = (
+        select(EnrolmentRow.student_id)
+        .join(
+            SchoolClassRow,
+            and_(
+                SchoolClassRow.tenant_id == EnrolmentRow.tenant_id,
+                SchoolClassRow.id == EnrolmentRow.class_id,
+            ),
+        )
+        .where(
+            EnrolmentRow.tenant_id == tenant_id,
+            EnrolmentRow.session_id == f.session_id,
+            EnrolmentRow.status == "active",
+            SchoolClassRow.school_level.in_(f.levels),
+        )
+    )
+    student_here = and_(u.roles.contains(["student"]), u.id.in_(enrolled))
+    guardian_here = and_(
+        u.roles.contains(["parent"]),
+        exists().where(
+            GuardianLinkRow.tenant_id == tenant_id,
+            GuardianLinkRow.parent_id == u.id,
+            GuardianLinkRow.student_id.in_(enrolled),
+        ),
+    )
+    return or_(in_section, whole_school_staff, student_here, guardian_here)
 
 
 class SqlInviteRepository:

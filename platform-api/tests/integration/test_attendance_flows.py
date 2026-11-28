@@ -11,7 +11,7 @@ import pytest
 
 from app.infrastructure.container import Container
 from tests.integration.conftest import Mailbox
-from tests.integration.helpers import bearer, register_and_verify
+from tests.integration.helpers import bearer, invite_body, register_and_verify
 
 pytestmark = pytest.mark.integration
 
@@ -38,7 +38,7 @@ async def _member(
     r = await client.post(
         "/api/v1/users",
         headers=bearer(director),
-        json={"email": email, "full_name": name, "roles": [role]},
+        json=await invite_body(client, director, email=email, name=name, role=role),
     )
     assert r.status_code == 201, r.text
     await container.outbox.run_once()

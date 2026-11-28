@@ -29,6 +29,7 @@ from app.domain.shared.errors import (
 from app.domain.shared.ids import new_id
 from app.domain.shared.money import Money
 from app.domain.shared.value_objects import Page
+from app.use_cases.academics.sections import ensure_student_in_scope, visible_students
 from app.use_cases.finance.common import (
     MoneyView,
     check_currency,
@@ -307,7 +308,10 @@ class PaymentProofs:
             raise ValidationFailed("Unknown status.", details={"field": "status"}) from exc
         async with self._uow_factory(Scope.tenant(actor.school_tenant_id), read_only=True) as uow:
             student_ids: list[UUID] | None
-            if actor.permissions.allows("payments:view"):
+            staff = actor.permissions.allows("payments:view")
+            if staff:
+                if student_id is not None:
+                    await ensure_student_in_scope(uow, actor, student_id)
                 student_ids = [student_id] if student_id else None
             else:
                 allowed = {actor.user_id}
@@ -324,7 +328,15 @@ class PaymentProofs:
                 cursor=cursor,
                 limit=max(1, min(limit, 100)),
             )
-        return Page(items=[ProofView.of(p) for p in page.items], next_cursor=page.next_cursor)
+            shown = (
+                await visible_students(uow, actor, {p.student_id for p in page.items})
+                if staff
+                else {p.student_id for p in page.items}
+            )
+        return Page(
+            items=[ProofView.of(p) for p in page.items if p.student_id in shown],
+            next_cursor=page.next_cursor,
+        )
 
     async def approve(
         self, actor: Principal, proof_id: UUID, *, amount_minor: int | None, note: str | None
@@ -340,6 +352,7 @@ class PaymentProofs:
             found = await uow.finance.get_proof(proof_id)
             if found is None:
                 raise NotFound("Proof of payment not found.")
+            await ensure_student_in_scope(uow, actor, found.student_id)
             await uow.finance.lock_student(found.student_id)
             proof = await uow.finance.get_proof(proof_id, for_update=True)
             if proof is None:  # pragma: no cover - locked above

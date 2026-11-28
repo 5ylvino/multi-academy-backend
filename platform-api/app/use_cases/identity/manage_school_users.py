@@ -10,10 +10,12 @@ from app.domain.identity.events import UserInvited
 from app.domain.identity.invite import UserInvite
 from app.domain.identity.password_policy import validate_password
 from app.domain.identity.permissions import parse_school_roles, validate_custom_capabilities
+from app.domain.identity.repositories import SectionFilter
 from app.domain.identity.roles import Realm, SchoolRole
 from app.domain.identity.user import UserAccount, UserStatus
 from app.domain.shared.errors import Conflict, NotFound, PermissionDenied, ValidationFailed
 from app.domain.shared.value_objects import EmailAddress, Page, Slug
+from app.use_cases.academics.sections import SECTION_ROLES, resolve_assignment, scope_of
 from app.use_cases.identity.session_issuer import ClientInfo, IssuedSession, SessionIssuer
 from app.use_cases.shared import audit
 from app.use_cases.shared.pagination import clamp_limit
@@ -67,6 +69,9 @@ class InviteSchoolUserCommand:
     full_name: str
     roles: list[str]
     capabilities: list[str]
+    #: The sections a head, teacher or section staff member works in. A school with a single
+    #: section fills this in itself.
+    section_ids: list[UUID] | None = None
 
 
 class InviteSchoolUser:
@@ -124,6 +129,11 @@ class InviteSchoolUser:
             )
             await uow.users.add(user)
             uow.track(user)
+            sections = await resolve_assignment(uow, user.roles, cmd.section_ids)
+            if sections:
+                await uow.sections.assign(
+                    user.id, {sec.id for sec in sections}, by=actor.user_id, now=now
+                )
             await uow.invites.add(
                 UserInvite.issue(
                     tenant_id=tenant_id,
@@ -151,7 +161,11 @@ class InviteSchoolUser:
                     tenant_id=tenant_id,
                     target_type="school_user",
                     target_id=str(user.id),
-                    metadata={"roles": sorted(user.roles), "capabilities": sorted(capabilities)},
+                    metadata={
+                        "roles": sorted(user.roles),
+                        "capabilities": sorted(capabilities),
+                        "sections": sorted(sec.name for sec in sections),
+                    },
                 )
             )
             await uow.commit()
@@ -244,11 +258,22 @@ class ListSchoolUsers:
             parse_school_roles([role])
         tenant_id = actor.school_tenant_id
         async with self._uow_factory(Scope.tenant(tenant_id), read_only=True) as uow:
+            scope = await scope_of(uow, actor)
+            within = None
+            if not scope.whole_school:
+                term = await uow.academics.current_term()
+                within = SectionFilter(
+                    section_ids=frozenset(scope.section_ids),
+                    levels=scope.levels,
+                    section_roles=SECTION_ROLES,
+                    session_id=term.session_id if term else None,
+                )
             page = await uow.users.list_school_users(
                 tenant_id,
                 role=role,
                 search=(search or "").strip() or None,
                 cursor=cursor,
                 limit=clamp_limit(limit),
+                within=within,
             )
         return Page(items=[SchoolUserView.of(u) for u in page.items], next_cursor=page.next_cursor)

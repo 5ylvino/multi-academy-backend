@@ -5,6 +5,7 @@ from __future__ import annotations
 from fastapi import APIRouter
 
 from app.presentation.http.v1.academics import routes as academics
+from app.presentation.http.v1.academics import sections_routes as sections
 from app.presentation.http.v1.assessment import results_routes as results
 from app.presentation.http.v1.assessment import routes as assessment
 from app.presentation.http.v1.attendance import routes as attendance
@@ -36,6 +37,7 @@ api_router.include_router(tenancy.platform_router)
 api_router.include_router(platform.router)
 api_router.include_router(users.router)
 api_router.include_router(guardian_routes.router)
+api_router.include_router(sections.router)
 api_router.include_router(academics.router)
 api_router.include_router(assessment.router)
 api_router.include_router(results.router)

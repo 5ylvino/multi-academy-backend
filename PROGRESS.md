@@ -77,6 +77,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `ae80f3c` | Parent-to-child links, optional online payments (off by default), proof-of-payment upload with bursar review, object storage (local + S3/Neon), request body size limit |
 | `6678788` | Refactor: code moved from `src/masms/` to `platform-api/app/` |
 | `ce575ff` | Online payments with Paystack: school connects its own account (keys checked, secret encrypted), parents pay for linked children, credited only after Paystack confirms (webhook, return or reconciliation), every path idempotent; outage, late payment, wrong currency and disconnect handled; switchable provider port |
+| (this commit) | School sections: nursery, primary and secondary as sections chosen at sign-up (nursery with primary or apart, or any grouping), each level in exactly one section (DB key), heads and staff assigned to sections with role fit checks, everyone outside the whole-school leaders sees and acts only in their own sections (classes, subjects, enrolment, rosters, people lists, attendance, gradebook, results, announcements, fees, clinic, gate, transport, boarding), the owner chooses per role whether service staff work per section, features switched on or off per section, re-arranging sections moves staff and no data, bootstrap carries sections; backfill for existing schools |
 | `58cfd35` | Results and report cards: broadsheet with totals, cumulative scores from earlier released terms, grades, competition-ranked positions and class statistics; class teacher and head comments; release once every subject is approved, freezing each card, telling students and guardians in-app and guardians by email; families see only released cards; withdraw with a reason, then release a new version; marks and comments locked while results are out |
 | `0182ef1` | Assessment and gradebook: a scheme per school level (parts adding to 100, fixed once the term has marks), a grading scale covering 0 to 100, score sheets per class, subject and term with batch autosave, exemptions for students not taking a subject, submit, recall, two-person approval (DB-enforced), send back and reopen with reasons, marks frozen by trigger outside draft, every mark change logged |
 | `6a9bdd3` | Boarding: hostels with a warden and rooms with beds, boarders allocated without overfilling a room or bed, a roll call showing who is away, exeats asked for by guardians (or staff) and decided by someone else (DB-enforced), one open exeat per boarder, signed out and back in with guardians told at each step, overdue list |
@@ -90,7 +91,7 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
 | `39f1562` | Platform billing: plan prices (base + per student, per term by default), a subscription per school, invoices issued a week ahead, reminders, 14-day grace then suspension, payment (platform Paystack account, recorded bank transfer, or waiver) reinstates only billing suspensions; emailed pay link that works while suspended; console list/record/void/change plan/run; worker every 15 minutes |
 | `5f285a9` | Audit trail: every change recorded with who, what, field changes, request id, IP and device; append-only and RLS-protected; search, CSV export and plain-English labels for school leaders and owner staff; tests that fail when a new use case forgets to audit |
 
-**Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0019`:
+**Migrations** (`app/infrastructure/persistence/migrations/versions/`), head is `0020`:
 
 1. `0001` foundation, identity, tenancy, platform
 2. `0002` school users, invites, academics
@@ -119,8 +120,10 @@ All on branch `rebuild/platform-api`, in **draft PR #1**
     CHECK, marks and exemptions frozen by trigger outside draft; RLS)
 19. `0019` assessment results (report card comments, releases per class and term, frozen
     report cards; RLS; no deletes)
+20. `0020` academic sections (sections, one section per level by primary key, section staff,
+    per-section roles, per-section features; RLS; backfill from each school's levels)
 
-**Quality at last run:** 461 tests pass, coverage 92%, ruff, mypy --strict and the 5
+**Quality at last run:** 488 tests pass, coverage 92%, ruff, mypy --strict and the 5
 import-linter contracts clean.
 
 **Not verified:** the Docker image was not rebuilt after the `app/` move (no Docker in the cloud
@@ -128,8 +131,7 @@ session). Build it once locally: `docker compose up --build`.
 
 ## 5. In progress and next
 
-In progress: **school sections** (nursery, primary, secondary kept separate, with their own
-heads, staff, data and features). Owner's requirements and design in section 8.
+In progress: nothing. School sections are done (section 8).
 
 Next, in order:
 
@@ -146,6 +148,9 @@ Next, in order:
 
 Follow-ups noted:
 
+- Sections: staff attendance and the leaders' list of sent announcements are still
+  school-wide; scope them per section next. The owner console and school app must use
+  `whole_school`, `my_section_ids` and each section's `features` from the bootstrap.
 - Profile images on the same `ObjectStore` port.
 - Tenant data-purge job (finance records block casual deletes by design).
 - Malware scanning of uploaded files.
@@ -236,6 +241,10 @@ The full plan is the Claude Doc "MA-SMS Rebuild Plan"
 | Score sheets need a second person to approve | Results decide promotions and admissions; the teacher who enters marks never signs them off, and the database refuses it too |
 | The scheme is fixed once a term has marks | Every mark in a term is out of the same parts, so totals and positions compare like with like |
 | Drivers see only the routes they drive | A manifest holds children's names and where they wait for the bus; a driver needs their own run and nothing else |
+| Sections follow levels; classes, subjects and students carry only their level | Re-arranging sections never moves data, and a level can never sit in two sections (primary key on tenant and level) |
+| Whole-school roles are the director, school admin and IT admin; an unassigned head or teacher sees nothing | Fail closed: a missing assignment must never show another section's children |
+| The owner picks per role whether service staff work per section | Small schools share one bursar or nurse; large ones run each section apart. Both are normal in Nigeria |
+| Features switched per section, checked in the use case | Nursery, primary and secondary run different activities; the server refuses a switched-off feature, not only the app |
 | Teachers see only the clinic alert, not the record | Least privilege for health data: a teacher needs to know about the peanut allergy, not the diagnosis history |
 
 ## 7. Conventions
@@ -315,7 +324,7 @@ The owner's requirements, as stated:
    different activities, so each section has its own set of features switched on or off.
 8. Restructure anything needed to capture this properly, using the best approach.
 
-How the backend captures it (in progress):
+How the backend captures it (done, see the sections commit in section 4):
 
 - **Sections**: each offered level belongs to exactly one section (the database key enforces
   it). The default puts nursery with primary and secondary alone; sign-up can choose nursery on
@@ -328,10 +337,18 @@ How the backend captures it (in progress):
 - **Scope**: the director, school admin and IT admin see the whole school. Section staff see
   only their sections' levels in classes, subjects, enrolment, attendance, the gradebook,
   results and staff lists. A teacher always reaches the classes they teach.
-- To do in this piece of work: the owner's per-role choice (item 6) and section scope in fees,
-  clinic, gate, transport and boarding for staff who work per section; features on or off per
-  section (item 7), shown in the start-up bootstrap so the app only shows a section's features;
-  announcements limited to a head's own section; tests, docs.
+- **Service staff (item 6)**: at sign-up (`per_section_roles`) or later
+  (`/academics/sections/staff-coverage`) the owner names which of bursar, nurse, guard, driver
+  and administrative staff work per section. Those staff are then assigned to sections and see
+  only their sections' students in fees, clinic, gate, transport and boarding; the rest serve
+  the whole school.
+- **Features (item 7)**: each section switches attendance, gradebook, report cards, clinic,
+  gate, transport and boarding on or off. Boarding starts on only in sections with secondary.
+  The bootstrap returns each section's features so the app shows only what a section uses.
+- Announcements from a head reach only their own section's classes.
+- Heads can now read their section's students and people list (`students:read`, `users:read`),
+  and the assistant head teacher can approve results so a primary section can run two-person
+  approval without the principal.
 
 **AI tutor (Phase 4)**
 

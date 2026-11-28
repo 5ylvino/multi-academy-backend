@@ -244,11 +244,13 @@ SCHOOL_ROLE_PERMISSIONS: MappingProxyType[SchoolRole, frozenset[str]] = MappingP
                 "staff_records:view",
                 "student_attendance:read",
                 "student_attendance:view_all",
+                "students:read",
                 "students:update",
                 "subjects:read",
                 "sync:write",
                 "timetable:manage",
                 "timetable:read",
+                "users:read",
             }
         ),
         SchoolRole.PRINCIPAL: _P(
@@ -304,11 +306,13 @@ SCHOOL_ROLE_PERMISSIONS: MappingProxyType[SchoolRole, frozenset[str]] = MappingP
                 "staff_records:view",
                 "student_attendance:read",
                 "student_attendance:view_all",
+                "students:read",
                 "students:update",
                 "subjects:read",
                 "sync:write",
                 "timetable:manage",
                 "timetable:read",
+                "users:read",
             }
         ),
         SchoolRole.VICE_PRINCIPAL: _P(
@@ -360,11 +364,13 @@ SCHOOL_ROLE_PERMISSIONS: MappingProxyType[SchoolRole, frozenset[str]] = MappingP
                 "staff_records:view",
                 "student_attendance:read",
                 "student_attendance:view_all",
+                "students:read",
                 "students:update",
                 "subjects:read",
                 "sync:write",
                 "timetable:manage",
                 "timetable:read",
+                "users:read",
             }
         ),
         SchoolRole.ASSISTANT_HEAD_TEACHER: _P(
@@ -379,6 +385,7 @@ SCHOOL_ROLE_PERMISSIONS: MappingProxyType[SchoolRole, frozenset[str]] = MappingP
                 "nursery:read",
                 "reports:generate",
                 "reports:view",
+                "results:approve",
                 "results:read",
                 "results:view_all",
                 "safeguarding:report",
@@ -387,8 +394,10 @@ SCHOOL_ROLE_PERMISSIONS: MappingProxyType[SchoolRole, frozenset[str]] = MappingP
                 "staff_attendance:read",
                 "staff_attendance:view_all",
                 "staff_records:view",
+                "students:read",
                 "students:update",
                 "subjects:read",
+                "users:read",
             }
         ),
         SchoolRole.BURSAR: _P(

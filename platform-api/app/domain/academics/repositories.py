@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Protocol
 from uuid import UUID
 
+from app.domain.academics.sections import Section
 from app.domain.academics.structure import AcademicSession, Enrolment, SchoolClass, Subject, Term
 
 
@@ -90,3 +92,44 @@ class AcademicsRepository(Protocol):
     async def count_active_in_class(self, class_id: UUID, session_id: UUID) -> int: ...
 
     async def roster(self, class_id: UUID, session_id: UUID) -> list[Enrolment]: ...
+
+
+class SectionRepository(Protocol):
+    async def list_sections(self) -> list[Section]: ...
+
+    async def get_section(self, section_id: UUID) -> Section | None: ...
+
+    async def lock(self) -> None:
+        """Serialises changes to the school's arrangement of sections and staff assignments."""
+        ...
+
+    async def save_arrangement(self, sections: list[Section], removed: list[UUID]) -> None:
+        """Write every section and its levels, and delete the removed sections (their staff
+        must have been moved first)."""
+        ...
+
+    async def sections_of(self, user_id: UUID) -> set[UUID]: ...
+
+    async def per_section_roles(self) -> set[str]:
+        """Service roles this school runs per section (the rest serve the whole school)."""
+        ...
+
+    async def set_per_section_roles(self, roles: set[str]) -> None: ...
+
+    async def staff_of(self, section_id: UUID) -> set[UUID]: ...
+
+    async def staff_sections(self, user_ids: set[UUID]) -> dict[UUID, set[UUID]]: ...
+
+    async def assign(
+        self, user_id: UUID, section_ids: set[UUID], *, by: UUID, now: datetime
+    ) -> None:
+        """Replace the person's sections with these."""
+        ...
+
+    async def release_staff(self, section_id: UUID) -> set[UUID]:
+        """Remove everyone from the section and return who they were."""
+        ...
+
+    async def add_staff(
+        self, section_ids: set[UUID], user_ids: set[UUID], *, by: UUID, now: datetime
+    ) -> None: ...

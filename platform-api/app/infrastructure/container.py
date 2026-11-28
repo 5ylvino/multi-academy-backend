@@ -32,6 +32,7 @@ from app.infrastructure.security.secrets import CryptoSecretGenerator, HmacSecre
 from app.infrastructure.security.tokens import JwtTokenService, generate_private_key_pem
 from app.infrastructure.storage.local import LocalObjectStore
 from app.infrastructure.storage.s3 import S3ObjectStore
+from app.use_cases.academics.sections import Sections
 from app.use_cases.academics.structure import AcademicCalendar, ClassesAndSubjects, Enrolments
 from app.use_cases.assessment.gradebook import Gradebook
 from app.use_cases.assessment.notifications import SendReportCardEmails
@@ -143,6 +144,7 @@ class UseCases:
     academic_calendar: AcademicCalendar
     classes_and_subjects: ClassesAndSubjects
     enrolments: Enrolments
+    sections: Sections
     verify_mfa: VerifyMfaSignIn
     start_mfa_enrolment: StartMfaEnrolment
     confirm_mfa_enrolment: ConfirmMfaEnrolment
@@ -448,6 +450,7 @@ def build_container(
         academic_calendar=AcademicCalendar(uow_factory=uow, clock=clock),
         classes_and_subjects=ClassesAndSubjects(uow_factory=uow),
         enrolments=Enrolments(uow_factory=uow, clock=clock),
+        sections=Sections(uow_factory=uow, clock=clock),
         verify_mfa=mfa_use_case(VerifyMfaSignIn),
         start_mfa_enrolment=mfa_use_case(StartMfaEnrolment),
         confirm_mfa_enrolment=mfa_use_case(ConfirmMfaEnrolment),
