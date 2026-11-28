@@ -4,7 +4,7 @@ The handover file for this repository. **Read it first in every session, and upd
 of every task** (what changed, what's next, any new decision). Keep it short and current: replace
 stale lines rather than appending history forever. Detailed history lives in git and in PR #1.
 
-Last updated: 28 Nov 2026, after commit `58cfd35` (results and report cards). Next: the portal.
+Last updated: 28 Nov 2026 (school sections requirements recorded), after commit `58cfd35` (results and report cards). Next: the portal.
 
 ---
 
@@ -127,6 +127,9 @@ import-linter contracts clean.
 session). Build it once locally: `docker compose up --build`.
 
 ## 5. In progress and next
+
+In progress: **school sections** (nursery, primary, secondary kept separate, with their own
+heads, staff, data and features). Owner's requirements and design in section 8.
 
 Next, in order:
 
@@ -270,6 +273,65 @@ The full plan is the Claude Doc "MA-SMS Rebuild Plan"
 - After every task: update this file (sections 4, 5 and 6), and the plan doc's progress log.
 
 ## 8. Feature requirements captured from the owner
+
+Everything the owner has asked for, in their terms. Keep this list complete: add to it whenever
+the owner states a requirement, and mark each item's status.
+
+**Overall direction (standing)**
+
+- One FastAPI clean-architecture backend in `platform-api/app/`, multi-tenant Postgres with RLS,
+  built to a US production standard for 50 million users, with top security and UX. Web only.
+- Order: finish the backend 100% first, then the owner console (`managerial-platform/`), then
+  the school app (`school/`).
+- Every action that changes data is audited (data auditing). Status: done for every feature so
+  far; the audit coverage test enforces it.
+- Online payments behind a switchable provider; Paystack first. Status: done.
+- Files on Neon Object Storage. Status: done (`ObjectStore` port).
+- A final pass at the end: walk every flow end to end and make it "extremely perfectly
+  seamless with no difficulty". Status: planned (section 5).
+- Keep this file updated after every task. Never merge or approve PR #1 without the owner's
+  own ask. Commits authored as the owner, with no Claude attribution anywhere (section 7).
+
+**School sections: nursery, primary and secondary (28 Nov 2026)**
+
+The owner's requirements, as stated:
+
+1. A school may offer any combination of levels: only nursery, only primary, nursery and
+   primary, only secondary, or all three. The owner chooses at sign-up.
+2. Each part of the school is led by its own academic head(s): secondary by the principal and
+   vice principal; primary by the head teacher (headmaster), who in most schools also leads
+   nursery.
+3. Nursery can either be merged with primary under the headmaster, or stand on its own with its
+   own head and academic management. The owner chooses at sign-up and can change it later.
+4. The parts of one school must stay separate: students, classes, teachers, subjects,
+   attendance, marks, results and everything else belong to their section. Nothing is mixed,
+   even though they share one school name.
+5. A head or staff member added to a section sees and handles only that section. A headmaster
+   sees nursery and primary only, never secondary; the same applies down to every other staff
+   member in a section.
+6. Service staff (bursar, nurse, gate, transport and other staff): the **owner decides during
+   onboarding** whether each of these works for the whole school or per section.
+7. **Features are segregated per level as well as data**: nursery, primary and secondary run
+   different activities, so each section has its own set of features switched on or off.
+8. Restructure anything needed to capture this properly, using the best approach.
+
+How the backend captures it (in progress):
+
+- **Sections**: each offered level belongs to exactly one section (the database key enforces
+  it). The default puts nursery with primary and secondary alone; sign-up can choose nursery on
+  its own, or any explicit arrangement. Sections can be split, merged and renamed later; classes,
+  subjects and students follow their level, and staff of a removed section move to the
+  sections that take over its levels. Existing schools were given sections by migration `0020`.
+- **Staff in sections**: heads and teachers must be assigned to a section (a school with one
+  section assigns them itself). Principal and vice principal only in a section with secondary;
+  head teacher and assistant head teacher only in one with nursery or primary.
+- **Scope**: the director, school admin and IT admin see the whole school. Section staff see
+  only their sections' levels in classes, subjects, enrolment, attendance, the gradebook,
+  results and staff lists. A teacher always reaches the classes they teach.
+- To do in this piece of work: the owner's per-role choice (item 6) and section scope in fees,
+  clinic, gate, transport and boarding for staff who work per section; features on or off per
+  section (item 7), shown in the start-up bootstrap so the app only shows a section's features;
+  announcements limited to a head's own section; tests, docs.
 
 **AI tutor (Phase 4)**
 
